@@ -1,0 +1,2 @@
+hidden_sizes,dropout,alpha,gamma,M,lr,mean_loss
+"(48, 128, 48)",True,2,1,4,0.0003,1499815.3429213779

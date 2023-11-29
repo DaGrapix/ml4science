@@ -4,5 +4,7 @@ ml4physim_startingkit/utils/
 starting_kit/
 LIPS/
 articles/
-ml4physim_startingkit/logs.log
 ml4physim_startingkit/log_benchmark
+*.log
+*.pkl
+*__pycache__/
