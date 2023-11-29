@@ -6,3 +6,10 @@ LIPS/
 articles/
 ml4physim_startingkit/logs.log
 ml4physim_startingkit/log_benchmark
+ml4physim_startingkit\0_Basic_Competition_Information.ipynb
+ml4physim_startingkit\1_Airfoils_design_basic_simulation.ipynb
+ml4physim_startingkit\2-Import_Airfoil_design_Dataset.ipynb
+ml4physim_startingkit\3_Reproduce_baseline_result.ipynb
+ml4physim_startingkit\4_How_to_contribute.ipynb
+ml4physim_startingkit\5_Scoring.ipynb
+ml4physim_startingkit\6_Submission.ipynb
