@@ -7,6 +7,9 @@ from torch.utils.data import TensorDataset, DataLoader
 from torch_uncertainty.layers import PackedLinear
 from einops import rearrange
 from tqdm import tqdm
+from typing import Union
+from lips.dataset.scaler import Scaler
+from lips.dataset import DataSet
 
 
 class PackedMLP(nn.Module):
@@ -49,7 +52,8 @@ class PackedMLP(nn.Module):
                  M: int = 4,
                  alpha: int = 2,
                  gamma: int = 1,
-                 device: str = "cpu"):
+                 device: str = "cpu",
+                 scaler: Union[Scaler, None] = None):
         super().__init__()
 
         # dropout
@@ -67,6 +71,8 @@ class PackedMLP(nn.Module):
         self.hidden_sizes = hidden_sizes
 
         self.num_estimators = M
+
+        self.scaler = scaler
 
         self.input_layer = PackedLinear(self.input_size, self.hidden_sizes[0], alpha=alpha, num_estimators=M,
                                         gamma=gamma, first=True,
@@ -103,41 +109,75 @@ class PackedMLP(nn.Module):
         return out
 
 
-def process_dataset(dataset, batch_size: int = 128000, training: bool = False, shuffle: bool = False,
-                    n_workers: int = 0):
-    """
-    This function allows to create a DataLoader from the airfrans data files.
+    def process_dataset(self, data: Union[DataSet, tuple[np.ndarray]]=None, batch_size: int = 128000, training: bool = False, scaler: Union[Scaler, None]= None, shuffle: bool = False,
+                        n_workers: int = 0):
+        """
+        This function allows to create a DataLoader from the airfrans data files.
 
-    Parameters
-    ----------
-    dataset: DataSet
-        The airfrans dataset to process
-    batch_size: int (default: 128000)
-        The batch size
-    training: bool (default: False)
-        Whether the dataset is for training or not
-    shuffle: bool (default: False)
-        Whether to shuffle the data or not
-    n_workers: int (default: 0)
-        The number of cpu subprocesses to use for data loading
+        Parameters
+        ----------
+        dataset: DataSet
+            The airfrans dataset to process
+        batch_size: int (default: 128000)
+            The batch size
+        training: bool (default: False)
+            Whether the dataset is for training or not
+        scaler: sklearn.preprocessing (default: None)
+            The scaler to use to scale the data
+        shuffle: bool (default: False)
+            Whether to shuffle the data or not
+        n_workers: int (default: 0)
+            The number of cpu subprocesses to use for data loading
 
-    Returns
-    -------
-    data_loader: DataLoader
-        The data loader
-    """
-    
-    if training:
+        Returns
+        -------
+        data_loader: DataLoader
+            The data loader
+        """
         batch_size = batch_size
-        extract_x, extract_y = dataset.extract_data()
-    else:
-        batch_size = batch_size
-        extract_x, extract_y = dataset.extract_data()
+        if type(data)==tuple:
+            extract_x, extract_y = data
+        else:
+            extract_x, extract_y = data.extract_data()
 
-    torch_dataset = TensorDataset(torch.from_numpy(extract_x).float(), torch.from_numpy(extract_y).float())
-    data_loader = DataLoader(torch_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
+        if training:
+            if self.scaler is not None:
+                extract_x, extract_y = self.scaler.fit_transform(extract_x, extract_y)
+        elif self.scaler is not None:
+                extract_x, extract_y = self.scaler.transform(extract_x, extract_y)
 
-    return data_loader
+        torch_dataset = TensorDataset(torch.from_numpy(extract_x).float(), torch.from_numpy(extract_y).float())
+        data_loader = DataLoader(torch_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
+
+        return data_loader
+
+
+    def post_processing(self, data: torch.Tensor):
+        """
+        This function is used to inverse the predictions of the model to their original state, before scaling
+        to be able to compare them with ground truth data
+
+        Parameters
+        ----------
+        data: torch.Tensor
+            The data to process
+        scaler: sklearn.preprocessing (default: None)
+            The scaler used to scale the data
+
+        Returns
+        -------
+        processed: torch.Tensor
+            The processed data
+        """
+
+        if self.scaler is not None:
+            try:
+                processed = self.scaler.inverse_transform(data)
+            except TypeError:
+                processed = self.scaler.inverse_transform(data.cpu())
+        else:
+            processed = data
+        return processed
 
 
 def infer_input_output_size(dataset):
@@ -199,7 +239,7 @@ class EarlyStopping:
                 self.early_stop = True
 
 
-def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu", tolerance=5, min_rate=0.0001, verbose=False):
+def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu", tolerance=5, min_rate=0.01, verbose=False):
     """
     This function allows to train a Packed-Ensemble model using the provided train_loader DataLoader.
     
@@ -291,7 +331,7 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
         mean_loss = total_loss / len(train_loader.dataset)
         train_losses.append(mean_loss)
 
-        if verbose: print(f"Train Epoch: {epoch}   Avg_Loss: {mean_loss:.5f}")
+        if verbose: print(f"Train epoch: {epoch}    ,   batch-average training loss: {mean_loss:.5f}   ,   validation loss: {val_loss:.5f}")
         
         if epoch > 0:
             early_stopping(train_losses[-1], train_losses[-2])
@@ -407,3 +447,4 @@ def predict(model, dataset, device="cpu", verbose=False):
     observations = dataset.reconstruct_output(observations)
 
     return predictions, observations
+
