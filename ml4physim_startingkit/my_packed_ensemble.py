@@ -233,8 +233,8 @@ class EarlyStopping:
             The previous training loss
         """
         
-        if (previous_train_loss - train_loss)/previous_train_loss > self.min_rate:
-            self.counter +=1
+        if (previous_train_loss - train_loss)/previous_train_loss < self.min_rate:
+            self.counter += 1
             if self.counter >= self.tolerance:  
                 self.early_stop = True
 
