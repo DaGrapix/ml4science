@@ -325,7 +325,7 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
         
         # the validation step is optional
         if val_loader is not None:
-            val_loss = validate(model, val_loader, device)
+            val_loss = validate(model, val_loader, device, verbose=verbose)
             val_losses.append(val_loss)
 
         mean_loss = total_loss / len(train_loader.dataset)
@@ -412,7 +412,7 @@ def predict(model, dataset, device="cpu", verbose=False):
     model.eval()
     predictions = []
     observations = []
-    test_loader = process_dataset(dataset, training=False, shuffle=False)
+    test_loader = model.process_dataset(dataset, training=False, shuffle=False)
     
     # we dont require the computation of the gradient
     with torch.no_grad():
