@@ -331,7 +331,10 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
         mean_loss = total_loss / len(train_loader.dataset)
         train_losses.append(mean_loss)
 
-        if verbose: print(f"Train epoch: {epoch}    ,   batch-average training loss: {mean_loss:.5f}   ,   validation loss: {val_loss:.5f}")
+        if verbose:
+            print(f"Train epoch: {epoch}    ,   batch-average training loss: {mean_loss:.5f}   ,")
+            if val_loader is not None:
+                print(f"validation loss: {val_loss:.5f}")
         
         if epoch > 0:
             early_stopping(train_losses[-1], train_losses[-2])
@@ -426,6 +429,7 @@ def predict(model, dataset, device="cpu", verbose=False):
             data = data.to(device)
             target = target.to(device)
             prediction = model(data)
+            prediction = model.post_processing(prediction)
 
             #averaging the predictions of the different ensemble models
             packed_split = rearrange(prediction, '(n b) m -> b n m', n=model.num_estimators)
