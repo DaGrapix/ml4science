@@ -10,7 +10,7 @@ from tqdm import tqdm
 from typing import Union
 from lips.dataset.scaler import Scaler
 from lips.dataset import DataSet
-
+from sklearn.model_selection import train_test_split
 
 class PackedMLP(nn.Module):
     """
@@ -109,7 +109,7 @@ class PackedMLP(nn.Module):
         return out
 
 
-    def process_dataset(self, data: Union[DataSet, tuple[np.ndarray]]=None, batch_size: int = 128000, training: bool = False, scaler: Union[Scaler, None]= None, shuffle: bool = False,
+    def process_dataset(self, data: Union[DataSet, tuple[np.ndarray]]=None, batch_size: int = 128000, training: bool = False, train_val_split: bool=False, scaler: Union[Scaler, None]= None, shuffle: bool = False,
                         n_workers: int = 0):
         """
         This function allows to create a DataLoader from the airfrans data files.
@@ -132,7 +132,9 @@ class PackedMLP(nn.Module):
         Returns
         -------
         data_loader: DataLoader
-            The data loader
+            The DataLoader for the training dataset
+        val_loader: DataLoader
+            The DataLoader for the validation dataset (could be None if no validation set is used)
         """
         batch_size = batch_size
         if type(data)==tuple:
@@ -140,7 +142,17 @@ class PackedMLP(nn.Module):
         else:
             extract_x, extract_y = data.extract_data()
 
-        if training:
+        if train_val_split:
+            extract_x_train, extract_x_val, extract_y_train, extract_y_val = train_test_split(extract_x, extract_y, test_size=0.2, random_state=42)
+            if self.scaler is not None:
+                extract_x_train, extract_y_train = self.scaler.fit_transform(extract_x_train, extract_y_train)
+                extract_x_val, extract_y_val = self.scaler.transform(extract_x_val, extract_y_val)
+            train_dataset = TensorDataset(torch.from_numpy(extract_x_train).float(), torch.from_numpy(extract_y_train).float())
+            val_dataset = TensorDataset(torch.from_numpy(extract_x_val).float(), torch.from_numpy(extract_y_val).float())
+            data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
+            return data_loader, val_loader
+        elif training:
             if self.scaler is not None:
                 extract_x, extract_y = self.scaler.fit_transform(extract_x, extract_y)
         elif self.scaler is not None:
@@ -149,7 +161,7 @@ class PackedMLP(nn.Module):
         torch_dataset = TensorDataset(torch.from_numpy(extract_x).float(), torch.from_numpy(extract_y).float())
         data_loader = DataLoader(torch_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
 
-        return data_loader
+        return data_loader, None
 
 
     def post_processing(self, data: torch.Tensor):
@@ -239,7 +251,7 @@ class EarlyStopping:
                 self.early_stop = True
 
 
-def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu", tolerance=5, min_rate=0.01, verbose=False):
+def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu", tolerance=5, min_rate=0.01, es=False, verbose=False):
     """
     This function allows to train a Packed-Ensemble model using the provided train_loader DataLoader.
     
@@ -263,6 +275,8 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
         The minimum rate of improvement to consider it as improvement
     verbose: bool (default: False)
         Whether to print information or not
+    es: bool (default: False)
+        Whether to use early stopping or not
 
     Returns
     -------
@@ -283,7 +297,7 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
     # select your loss function
     loss_function = nn.MSELoss()
 
-    early_stopping = EarlyStopping(tolerance=tolerance, min_rate=min_rate)
+    if es: early_stopping = EarlyStopping(tolerance=tolerance, min_rate=min_rate)
 
     if verbose:
         pbar = tqdm(range(epochs), desc="Epochs")
@@ -333,11 +347,12 @@ def train(model, train_loader, val_loader=None, epochs=100, lr=3e-4, device="cpu
 
         if verbose: print(f"Train epoch: {epoch}    ,   batch-average training loss: {mean_loss:.5f}   ,   validation loss: {val_loss:.5f}")
         
-        if epoch > 0:
-            early_stopping(train_losses[-1], train_losses[-2])
-        if early_stopping.early_stop: 
-            if verbose: print(f"Early stopping at epoch: {epoch}")
-            break
+        if es:
+            if epoch > 0:
+                early_stopping(train_losses[-1], train_losses[-2])
+            if early_stopping.early_stop: 
+                if verbose: print(f"Early stopping at epoch: {epoch}")
+                break
 
     return model, train_losses, val_losses
 
