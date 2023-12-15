@@ -26,3 +26,4 @@ ml4physim_startingkit/running_script.py
 ml4physim_startingkit/submission/
 .env
 ml4physim_startingkit/dump
+*.npz
