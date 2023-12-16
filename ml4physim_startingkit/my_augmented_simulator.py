@@ -466,11 +466,13 @@ class PackedMLP(nn.Module):
         self._target = self._target.to(device, non_blocking=non_blocking)
 
         predictions = self.forward(self._data)
-        
-        packed_split = rearrange(predictions, '(n b) m -> b n m', n=self.num_estimators)
-        packed_prediction = packed_split.mean(dim=1)
 
-        return self._data, packed_prediction, self._target
+        if self.training:
+            return self._data, predictions, self._target.repeat(self.num_estimators, 1)
+        else:
+            packed_split = rearrange(predictions, '(n b) m -> b n m', n=self.num_estimators)
+            packed_prediction = packed_split.mean(dim=1)
+            return self._data, packed_prediction, self._target
 
     def get_loss_func(self, loss_name: str, **kwargs) -> torch.Tensor:
         """
