@@ -1,8 +1,8 @@
 # ML4Science
 
 This repository shows the implementation of Packed-Ensemble Algorithms for solving Fluid Mechanics problems.
-
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx. (see [Codabench page](https://www.codabench.org/competitions/1534/))
+CFD simulations being very costly, the use of data-based surrogate models can 
 
 Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
