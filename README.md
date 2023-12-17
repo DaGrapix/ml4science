@@ -4,7 +4,7 @@ This repository shows the implementation of Packed-Ensemble Algorithms for solvi
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
 CFD simulations being very costly, the use of data-based surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
 
-A family of models that is tested here is Packed-ensemble, which are generalization of Deep-Ensemble that allow to keep the number of an Ensemble Method's parameters small.
+A family of models that is tested here is Packed-ensembles, which are generalizations of Deep-ensembles that allow to keep the number of an Ensemble Method's parameters small.
 
 Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
