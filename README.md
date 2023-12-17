@@ -11,7 +11,7 @@ To checkout the Packed-Ensemble model, go to the `ml4science.ipynb` file.
 ### Install the LIPS framework
 
 
-### Requirements
+#### Requirements
 - Python >= 3.6
 
 #### Setup a Virtualenv (optional)
