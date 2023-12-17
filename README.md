@@ -4,7 +4,9 @@ This repository shows the implementation of Packed-Ensemble Algorithms for solvi
 
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx. (see [Codabench page](https://www.codabench.org/competitions/1534/))
 
-To checkout the Packed-Ensemble model, go to the `ml4science.ipynb` file.
+Two frameworks are proposed:
+- A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
+- An implementation of the Packed-Ensemble model within the LIPS framework.
 
 ## Installation
 
