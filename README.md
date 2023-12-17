@@ -35,14 +35,14 @@ pip3 install -U .
 cd ..
 ```
 
-## Install the Airfrans library and install the datasets
+### Install the Airfrans library and install the datasets
 
-### Install the library
+#### Install the library
 ```sh
 pip install airfrans
 ```
 
-### Download the dataset
+#### Download the dataset
 ```sh
 import os
 import airfrans as af
