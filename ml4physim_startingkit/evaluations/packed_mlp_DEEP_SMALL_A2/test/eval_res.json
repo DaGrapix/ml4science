@@ -1,0 +1,31 @@
+{
+    "IndRed": {},
+    "ML": {
+        "MAPE": {
+            "pressure": 7.4297153397975,
+            "turbulent_viscosity": 37088472036.729965,
+            "x-velocity": 238105600854860.9,
+            "y-velocity": 214342990218063.28
+        },
+        "MAPE_surfacic": {
+            "pressure": 37088472036.729965
+        },
+        "MSE": {
+            "pressure": 2631655.8291059285,
+            "turbulent_viscosity": 7.557992115373613e-06,
+            "x-velocity": 239.68206731568077,
+            "y-velocity": 194.94452533769618
+        },
+        "MSE_surfacic": {
+            "pressure": 7.557992115373613e-06
+        }
+    },
+    "Physics": {
+        "mean_relative_drag": 20.476306844432887,
+        "mean_relative_lift": 0.6215304497793774,
+        "spearman_correlation_drag": 0.19559438985974653,
+        "spearman_correlation_lift": 0.9345713642841073,
+        "std_relative_drag": 10.83823173204571,
+        "std_relative_lift": 1.5455370527833396
+    }
+}
