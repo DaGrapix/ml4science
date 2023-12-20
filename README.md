@@ -28,7 +28,9 @@ conda activate ml4science
 ```
 
 #### Install from source
+Download the LIPS repository in the `src` folder
 ```commandline
+cd src
 git clone https://github.com/IRT-SystemX/LIPS.git
 ```
 Then remove the `numpy` and `scipy` requirement from the `setup.py` file to avoid conflicts.
