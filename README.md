@@ -40,15 +40,15 @@ pip install -U .
 cd ..
 ```
 
+### Install pytorch
+Checkout https://pytorch.org/get-started/locally/
+
 ### Install the Airfrans library and install the datasets
 
 #### Install the library
 ```sh
 pip install airfrans
 ```
-
-### Install pytorch
-Checkout https://pytorch.org/get-started/locally/
 
 #### Download the dataset
 ```sh
