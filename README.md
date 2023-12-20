@@ -14,7 +14,7 @@ Two frameworks are proposed:
 
 ### Install the LIPS framework
 
-#### Setup a Virtualenv
+#### Setup an Environment
 
 ```commandline
 conda create --name ml4science python=3.9
