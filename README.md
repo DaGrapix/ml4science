@@ -8,36 +8,40 @@ A family of models that is tested here is Packed-ensembles, which are generaliza
 
 Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
-- An implementation of the Packed-Ensemble model within the LIPS framework.
+- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`.
 
 ## Installation
 
 ### Install the LIPS framework
 
+#### Setup a Virtualenv
 
-#### Requirements
-- Python >= 3.6
+```commandline
+conda create --name ml4science python=3.9
 
-#### Setup a Virtualenv (optional)
+```
+
 ##### Create a virtual environment
 
-```commandline
-cd my-project-folder
-pip3 install -U virtualenv
-python3 -m virtualenv venv_lips
-```
 ##### Enter virtual environment
 ```commandline
-source venv_lips/bin/activate
+conda activate ml4science
 ```
 
 #### Install from source
 ```commandline
 git clone https://github.com/IRT-SystemX/LIPS.git
+```
+Then remove the `numpy` and `scipy` requirement from the `setup.py` file to avoid conflicts.
+
+```commandline
 cd LIPS
-pip3 install -U .
+pip install -U .
 cd ..
 ```
+
+### Install pytorch
+Checkout https://pytorch.org/get-started/locally/
 
 ### Install the Airfrans library and install the datasets
 
