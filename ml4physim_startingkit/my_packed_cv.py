@@ -298,9 +298,9 @@ def hyperparameters_tuning(benchmark: DataSet, param_grid: dict, k_folds: int, n
             val_x = extract_x[val_ids]
             val_y = extract_y[val_ids]
 
-            trainloader = model.process_dataset(data=(train_x, train_y), training=True, batch_size=batch_size,
+            trainloader, _ = model.process_dataset(data=(train_x, train_y), training=True, batch_size=batch_size,
                                                 shuffle=shuffle, n_workers=n_workers)
-            validateloader = model.process_dataset(data=(val_x, val_y), training=False, batch_size=batch_size,
+            validateloader, _ = model.process_dataset(data=(val_x, val_y), training=False, batch_size=batch_size,
                                                    shuffle=shuffle, n_workers=n_workers)
 
             model, train_losses, val_losses = train(model=model, train_loader=trainloader, val_loader=validateloader,
