@@ -222,7 +222,10 @@ def hyperparameters_tuning(benchmark: DataSet, param_grid: dict, k_folds: int, n
     # sample only a fraction of the dataset
     extract_x, extract_y = sample_data(extract_x, extract_y, size_scale, seed=None)
 
-    results_df = pd.DataFrame(columns=[*param_grid.keys(), "validation_loss"])
+    try:
+        results_df = pd.read_csv(f"CV/partition_{partition}/results_{partition}.csv")
+    except:
+        results_df = pd.DataFrame(columns=[*param_grid.keys(), "validation_loss"])
 
     try:
         # read the checkpoint
@@ -304,7 +307,7 @@ def hyperparameters_tuning(benchmark: DataSet, param_grid: dict, k_folds: int, n
                                                     epochs=num_epochs, device=device, lr=hyperparameter_dict["lr"][i],
                                                     verbose=verbose)
 
-            summed_validation_loss += np.mean(val_losses)
+            summed_validation_loss += val_losses[-1]
 
             # saving the losses
             save_losses(train_losses_list=train_losses, val_losses_list=val_losses,
@@ -328,10 +331,7 @@ def hyperparameters_tuning(benchmark: DataSet, param_grid: dict, k_folds: int, n
         results_df.loc[len(results_df)] = param_dict
         
         # save the results
-        try:
-            pd.read_csv(f"CV/partition_{partition}/results_{partition}.csv").append(results_df).to_csv(f"CV/partition_{partition}/results.csv", index=False)
-        except:
-            results_df.to_csv(f"CV/partition_{partition}/results_{partition}.csv", index=False)
+        results_df.to_csv(f"CV/partition_{partition}/results_{partition}.csv", index=False)
 
         checkpoint += 1
         # save the checkpoint
