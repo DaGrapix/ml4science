@@ -7,18 +7,17 @@ CFD simulations being very costly, the use of data-based surrogate models can be
 A family of models that is tested here is Packed-ensembles, which are generalizations of Deep-ensembles that allow to keep the number of an Ensemble Method's parameters small.
 
 Two frameworks are proposed:
-- A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
-- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`.
+- A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
+- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 
 ## Installation
 
 ### Install the LIPS framework
 
-#### Setup a Virtualenv
+#### Setup an Environment
 
 ```commandline
 conda create --name ml4science python=3.9
-
 ```
 
 ##### Create a virtual environment
@@ -29,7 +28,9 @@ conda activate ml4science
 ```
 
 #### Install from source
+Download the LIPS repository in the `src` folder
 ```commandline
+cd src
 git clone https://github.com/IRT-SystemX/LIPS.git
 ```
 Then remove the `numpy` and `scipy` requirement from the `setup.py` file to avoid conflicts.
