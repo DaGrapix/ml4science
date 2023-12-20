@@ -1,2 +1,0 @@
-Training took 7547.45 seconds
-Evaluation took 2273.68 seconds
