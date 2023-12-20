@@ -14,10 +14,6 @@ Two frameworks are proposed:
 
 ### Install the LIPS framework
 
-
-#### Requirements
-- Python >= 3.6
-
 #### Setup a Virtualenv
 
 ```commandline
