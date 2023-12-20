@@ -18,7 +18,6 @@ Two frameworks are proposed:
 
 ```commandline
 conda create --name ml4science python=3.9
-
 ```
 
 ##### Create a virtual environment
