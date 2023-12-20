@@ -18,22 +18,27 @@ Two frameworks are proposed:
 #### Requirements
 - Python >= 3.6
 
-#### Setup a Virtualenv (optional)
-##### Create a virtual environment
+#### Setup a Virtualenv
 
 ```commandline
-cd my-project-folder
-pip3 install -U virtualenv
-python3 -m virtualenv venv_lips
+conda create --name ml4science python=3.9
+
 ```
+
+##### Create a virtual environment
+
 ##### Enter virtual environment
 ```commandline
-source venv_lips/bin/activate
+conda activate ml4science
 ```
 
 #### Install from source
 ```commandline
 git clone https://github.com/IRT-SystemX/LIPS.git
+```
+Then remove the `numpy` and `scipy` requirement from the `setup.py` file to avoid conflicts.
+
+```commandline
 cd LIPS
 pip3 install -U .
 cd ..
@@ -45,6 +50,9 @@ cd ..
 ```sh
 pip install airfrans
 ```
+
+### Install pytorch
+Checkout https://pytorch.org/get-started/locally/
 
 #### Download the dataset
 ```sh
