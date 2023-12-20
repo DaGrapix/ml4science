@@ -7,8 +7,8 @@ CFD simulations being very costly, the use of data-based surrogate models can be
 A family of models that is tested here is Packed-ensembles, which are generalizations of Deep-ensembles that allow to keep the number of an Ensemble Method's parameters small.
 
 Two frameworks are proposed:
-- A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
-- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`.
+- A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
+- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 
 ## Installation
 
