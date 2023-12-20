@@ -8,7 +8,7 @@ A family of models that is tested here is Packed-ensembles, which are generaliza
 
 Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function.
-- An implementation of the Packed-Ensemble model within the LIPS framework.
+- An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`.
 
 ## Installation
 
