@@ -23,7 +23,7 @@
         }
     },
     "metrics": [
-        "MSELoss"
+        "MAELoss"
     ],
     "name": "packed_mlp",
     "non_blocking": true,
