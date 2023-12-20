@@ -18,3 +18,12 @@ ml4physim_startingkit/4_How_to_contribute.ipynb
 ml4physim_startingkit/5_Scoring.ipynb
 ml4physim_startingkit/6_Submission.ipynb
 ml4physim_startingkit/7_Submission_examples.ipynb
+*.png
+ml4physim_startingkit/my_custom_packed_ensemble.py
+ml4physim_startingkit/running_script.ipynb
+ml4physim_startingkit/running_script.py
+ml4physim_startingkit/submission/
+.env
+ml4physim_startingkit/dump
+*AirfRANSModel*
+*.npz
