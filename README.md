@@ -36,7 +36,7 @@ Then remove the `numpy` and `scipy` requirement from the `setup.py` file to avoi
 
 ```commandline
 cd LIPS
-pip3 install -U .
+pip install -U .
 cd ..
 ```
 
