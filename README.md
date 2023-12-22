@@ -2,7 +2,7 @@
 
 This repository shows the implementation of Packed-Ensemble Algorithms for solving Fluid Mechanics problems.
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
-CFD simulations being very costly, the use of data-based surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
+CFD simulations being very costly, the use of data-driven surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
 
 A family of models that is tested here is Packed-ensembles, which are generalizations of Deep-ensembles that allow to keep the number of an Ensemble Method's parameters small.
 
@@ -10,7 +10,7 @@ Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
 - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 
-You can also checkout the corresponding paper: https://arxiv.org/abs/2312.13403
+You can checkout the corresponding paper here: https://arxiv.org/abs/2312.13403
 
 ## Installation
 
