@@ -1,4 +1,4 @@
-# ML4Science
+# Packed-Ensemble Surrogate Models for Flow Estimation Arround Airfoil Geometries
 
 This repository shows the implementation of Packed-Ensemble Algorithms for solving Fluid Mechanics problems.
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
