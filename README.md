@@ -10,6 +10,8 @@ Two frameworks are proposed:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
 - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 
+You can also checkout the corresponding paper: https://arxiv.org/abs/2312.13403
+
 ## Installation
 
 ### Install the LIPS framework
