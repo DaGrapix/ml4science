@@ -212,7 +212,7 @@ class PackedMLP(nn.Module):
     def __init__(self, hparams: dict):
         super().__init__()
 
-        dropout = hparams['dropout']
+        dropout = hparams.get('dropout')
         # dropout
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
