@@ -209,41 +209,34 @@ class PackedMLP(nn.Module):
         The device to use
     """
 
-    def __init__(self,
-                 input_size: int = None,
-                 output_size: int = None,
-                 hidden_sizes: Union[tuple, list] = (100, 100,),
-                 activation=F.relu,
-                 dropout: Union[float, None] = None,
-                 M: int = 4,
-                 alpha: int = 2,
-                 gamma: int = 1,
-                 device: str = "cpu"):
+    def __init__(self, hparams: dict):
         super().__init__()
 
-        self.dropout = None
+        dropout = hparams['dropout']
         # dropout
         if dropout is not None:
             self.dropout = nn.Dropout(dropout)
 
-        self.device = device
+        self.device = hparams['device']
 
-        self.activation = activation
-        self.input_size = input_size
-        self.output_size = output_size
-        self.hidden_sizes = hidden_sizes
+        self.activation = F.relu
+        self.input_size = hparams['input_size']
+        self.output_size = hparams['output_size']
+        self.hidden_sizes = hparams['hidden_sizes']
 
-        self.num_estimators = M
+        self.num_estimators = hparams['M']
+        self.alpha = hparams['alpha']
+        self.gamma = hparams['gamma']
 
-        self.input_layer = PackedLinear(self.input_size, self.hidden_sizes[0], alpha=alpha, num_estimators=M,
-                                        gamma=gamma, first=True,
-                                        device=device)
+        self.input_layer = PackedLinear(self.input_size, self.hidden_sizes[0], alpha=self.alpha, num_estimators=self.num_estimators,
+                                        gamma=self.gamma, first=True,
+                                        device=self.device)
         self.hidden_layers = nn.ModuleList(
-            [PackedLinear(in_f, out_f, alpha=alpha, num_estimators=M, gamma=gamma, device=device) \
+            [PackedLinear(in_f, out_f, alpha=self.alpha, num_estimators=self.M, gamma=self.gamma, device=self.device) \
              for in_f, out_f in zip(self.hidden_sizes[:-1], self.hidden_sizes[1:])])
-        self.output_layer = PackedLinear(self.hidden_sizes[-1], self.output_size, alpha=alpha, num_estimators=M,
-                                         gamma=gamma, last=True,
-                                         device=device)
+        self.output_layer = PackedLinear(self.hidden_sizes[-1], self.output_size, alpha=self.alpha, num_estimators=self.num_estimators,
+                                         gamma=self.gamma, last=True,
+                                         device=self.device)
 
     def forward(self, data):
         """
@@ -287,7 +280,7 @@ class AugmentedSimulator():
         else:
             print('Using CPU')
 
-        self.model = PackedMLP(**self.hparams)
+        self.model = PackedMLP(self.hparams)
 
     def process_dataset(self, dataset, training: bool) -> DataLoader:
         coord_x=dataset.data['x-position']
