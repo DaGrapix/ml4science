@@ -232,7 +232,7 @@ class PackedMLP(nn.Module):
                                         gamma=self.gamma, first=True,
                                         device=self.device)
         self.hidden_layers = nn.ModuleList(
-            [PackedLinear(in_f, out_f, alpha=self.alpha, num_estimators=self.M, gamma=self.gamma, device=self.device) \
+            [PackedLinear(in_f, out_f, alpha=self.alpha, num_estimators=self.num_estimators, gamma=self.gamma, device=self.device) \
              for in_f, out_f in zip(self.hidden_sizes[:-1], self.hidden_sizes[1:])])
         self.output_layer = PackedLinear(self.hidden_sizes[-1], self.output_size, alpha=self.alpha, num_estimators=self.num_estimators,
                                          gamma=self.gamma, last=True,
