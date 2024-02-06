@@ -212,7 +212,7 @@ class PackedMLP(nn.Module):
     def __init__(self,
                  input_size: int = None,
                  output_size: int = None,
-                 hidden_sizes: tuple = (100, 100,),
+                 hidden_sizes: Union[tuple, list] = (100, 100,),
                  activation=F.relu,
                  dropout: Union[float, None] = None,
                  M: int = 4,
@@ -354,7 +354,11 @@ class AugmentedSimulator():
             for data in test_dataset:        
                 data_clone = data.clone()
                 data_clone = data_clone.to(self.device)
-                out = self.model(data_clone)
+                packed_out = self.model(data_clone)
+
+                # averaging the predictions of the different ensemble models
+                out = rearrange(packed_out, '(n b) m -> b n m', n=self.model.num_estimators)
+                out = out.mean(dim=1)
 
                 targets = data_clone.y
                 loss_criterion = nn.MSELoss(reduction = 'none')
@@ -462,10 +466,10 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
             loss_criterion = nn.MSELoss(reduction = 'none')
         elif criterion == 'MAE':
             loss_criterion = nn.L1Loss(reduction = 'none')
-        loss_per_var = loss_criterion(out, targets).mean(dim = 0)
+        loss_per_var = loss_criterion(out, targets.repeat(model.num_estimators, 1)).mean(dim = 0)
         total_loss = loss_per_var.mean()
-        loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
-        loss_vol_var = loss_criterion(out[~data_clone.surf, :], targets[~data_clone.surf, :]).mean(dim = 0)
+        loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :].repeat(model.num_estimators, 1)).mean(dim = 0)
+        loss_vol_var = loss_criterion(out[~data_clone.surf, :], targets[~data_clone.surf, :].repeat(model.num_estimators, 1)).mean(dim = 0)
         loss_surf = loss_surf_var.mean()
         loss_vol = loss_vol_var.mean()
 
