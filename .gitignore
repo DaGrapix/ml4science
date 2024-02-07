@@ -27,3 +27,4 @@ src/submission/
 src/dump
 *AirfRANSModel*
 *.npz
+*.zip
