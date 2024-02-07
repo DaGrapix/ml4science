@@ -253,7 +253,7 @@ class PackedMLP(nn.Module):
             The forward-pass output of the model
         """
 
-        out = self.input_layer(data)
+        out = self.input_layer(data.x)
         for _, fc_ in enumerate(self.hidden_layers):
             out = fc_(out)
             out = self.activation(out)
@@ -461,8 +461,9 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
             loss_criterion = nn.L1Loss(reduction = 'none')
         loss_per_var = loss_criterion(out, targets.repeat(model.num_estimators, 1)).mean(dim = 0)
         total_loss = loss_per_var.mean()
-        loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :].repeat(model.num_estimators, 1)).mean(dim = 0)
-        loss_vol_var = loss_criterion(out[~data_clone.surf, :], targets[~data_clone.surf, :].repeat(model.num_estimators, 1)).mean(dim = 0)
+        surf_mask = data_clone.surf.repeat(model.num_estimators)
+        loss_surf_var = loss_criterion(out[surf_mask, :], targets.repeat(model.num_estimators, 1)[surf_mask, :]).mean(dim = 0)
+        loss_vol_var = loss_criterion(out[~surf_mask, :], targets.repeat(model.num_estimators, 1)[~surf_mask, :]).mean(dim = 0)
         loss_surf = loss_surf_var.mean()
         loss_vol = loss_vol_var.mean()
 
