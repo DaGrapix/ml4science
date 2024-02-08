@@ -65,8 +65,11 @@ class AttentionBlock(torch.nn.Module):
 
 
 class Ransformer(torch.nn.Module):
-    def __init__(self, input_size: int, output_size: int):
+    def __init__(self, **kwargs):
         super(Ransformer, self).__init__()
+
+        try: input_size, output_size = kwargs["input_size"], kwargs["output_size"]
+        except: input_size, output_size = 7, 4
 
         self.proj1 = AttentionBlock(input_size, 32)
         self.proj2 = AttentionBlock(39, 121)
@@ -106,7 +109,7 @@ class AugmentedSimulator():
         else:
             print('Using CPU')
 
-        self.model = Ransformer(self.hparams)
+        self.model = Ransformer(**self.hparams)
 
     def process_dataset(self, dataset, training: bool) -> DataLoader:
         coord_x=dataset.data['x-position']
@@ -230,25 +233,11 @@ def global_train(device, train_dataset, network, hparams, criterion = 'MSE', reg
 
     for epoch in pbar_train:
         epoch_nb += 1
-        print('Epoch: ', epoch_nb)        
-        train_dataset_sampled = []
-        for data in train_dataset:
-            data_sampled = data.clone()
-            idx = random.sample(range(data_sampled.x.size(0)), hparams['subsampling'])
-            idx = torch.tensor(idx)
+        print('Epoch: ', epoch_nb)
 
-            data_sampled.pos = data_sampled.pos[idx]
-            data_sampled.x = data_sampled.x[idx]
-            data_sampled.y = data_sampled.y[idx]
-            data_sampled.surf = data_sampled.surf[idx]
-            train_dataset_sampled.append(data_sampled)
-        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True)
-        del(train_dataset_sampled)
-
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg = reg)        
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_dataset, optimizer, lr_scheduler, criterion, reg = reg)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
-        del(train_loader)
 
         train_loss_surf_list.append(loss_surf)
         train_loss_vol_list.append(loss_vol)
@@ -273,8 +262,8 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
     for data in train_loader:
         data_clone = data.clone()
         data_clone = data_clone.to(device)   
-        optimizer.zero_grad()  
-        out = model(data_clone)
+        optimizer.zero_grad()
+        out = model(data_clone.x)
         targets = data_clone.y
 
         if criterion == 'MSE' or criterion == 'MSE_weighted':

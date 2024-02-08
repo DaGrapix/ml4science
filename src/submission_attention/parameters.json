@@ -3,21 +3,17 @@
   "scoringonly": false,
   "simulator_config": {
     "simulator_type": "custom",
-    "simulator_file": "my_augmented_simulator",
+    "simulator_file": "my_attention_simulator",
     "name": "MyAugmentedSimulator",
     "model": "AugmentedSimulator",
     "scaler_type": "None"
    },
   "simulator_extra_parameters": {
-    "encoder": [7, 64, 64, 8],
-    "decoder": [8, 64, 64, 4],
-    "nb_hidden_layers": 3,
-    "size_hidden_layers": 64,
+    "input_size": 7,
+    "output_size": 4,
     "batch_size": 1,
     "nb_epochs": 600,
-    "lr": 0.001,
-    "bn_bool": true,
-    "subsampling": 32000
+    "lr": 0.001
   },
   "training_config": {}
 }

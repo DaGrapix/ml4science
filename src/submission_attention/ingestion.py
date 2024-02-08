@@ -30,9 +30,9 @@ max_time = 500
 # and the results written to. Change the root_dir to your local directory.
 root_dir = r"C:/Users/pc/Desktop/github/ml4physim/src/"
 default_input_dir = root_dir + "Dataset"
-default_output_dir = root_dir + "new_submission/sample_result_submission"
-default_program_dir = root_dir + "new_submission"
-default_submission_dir = root_dir + "new_submission"
+default_output_dir = root_dir + "submission_attention/sample_result_submission"
+default_program_dir = root_dir + "submission_attention"
+default_submission_dir = root_dir + "submission_attention"
 
 # =============================================================================
 # =========================== END USER OPTIONS ================================
