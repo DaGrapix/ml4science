@@ -23,15 +23,64 @@ from lips.dataset.airfransDataSet import download_data
 from lips.dataset.scaler.standard_scaler_iterative import StandardScalerIterative
 
 
-def smoothL1(x, s, keptcomponent=False):
-    y = torch.minimum(x.abs(), x * x) * s
+# K-means clustering
+
+# using a uniform at random initialisation
+def centroid_uniform_initialisation(X:Tensor, k: int=100):
+    samples = np.random.choice(a=X.shape[0], replace=False, size=k)
+    return X[samples,:]
+
+# using the k-means++ initialisation
+def kmeans_plusplus_initialisation(X: torch.Tensor, k: int):
+    n_samples = X.shape[0]
+    # Step 1: Choose one center uniformly at random from among the data points.
+    centroids = X[torch.randint(0, n_samples, (1,))]
+
+    for _ in range(k - 1):
+        # Step 2: For each data point x, compute D(x), the distance between x and the nearest center that has already been chosen.
+        distances = torch.cdist(X, centroids, p=2)
+        min_distances = torch.min(distances, dim=1)[0]
+
+        # Step 3: Choose one new data point at random as a new center, using a weighted probability distribution where a point x is chosen with probability proportional to D(x)^2.
+        probabilities = min_distances / torch.sum(min_distances)
+        new_centroid_idx = torch.multinomial(probabilities, 1)
+
+        # Add the new centroid to the list of centroids
+        centroids = torch.cat([centroids, X[new_centroid_idx]], dim=0)
+
+    return centroids
+
+def k_means(X:Tensor, k: int=6):
+    centroids = kmeans_plusplus_initialisation(X,k)
+
+    while True:
+        # compute the distance of each point to the centroids
+        distances = torch.cdist(X, centroids, p=2)
+
+        # define the index associated to each centroid
+        cluster_idx = torch.argmin(distances, dim=1)
+
+        # compute the new centroids
+        new_centroids = torch.stack([X[cluster_idx == i].mean(0) for i in range(k)])
+
+        # end when we have converged
+        if torch.all(centroids == new_centroids):
+            break
+
+        centroids = new_centroids
+    return cluster_idx
+
+
+def smoothL1(pred, target, keptcomponent=False):
+    x = pred - target
+    y = torch.minimum(x.abs(), x * x)
     if keptcomponent:
-        return y.sum(0) / (s.sum() + 1)
+        return y.mean(0)
     else:
-        return y.mean(1).sum() / (s.sum() + 1)
+        return y.mean()
 
 
-def smoothSoftmax(x, sPROJ):
+def smoothSoftmax(x):
     s = torch.nn.functional.softmax(x, dim=1)
     ss = torch.nn.functional.relu(x)
     num = ss * 0.1 + s
@@ -234,10 +283,24 @@ def global_train(device, train_dataset, network, hparams, criterion = 'MSE', reg
     for epoch in pbar_train:
         epoch_nb += 1
         print('Epoch: ', epoch_nb)
+        train_dataset_sampled = []
+        for data in train_dataset:
+            data_sampled = data.clone()
+            idx = random.sample(range(data_sampled.x.size(0)), hparams['subsampling'])
+            idx = torch.tensor(idx)
 
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_dataset, optimizer, lr_scheduler, criterion, reg = reg)        
+            data_sampled.pos = data_sampled.pos[idx]
+            data_sampled.x = data_sampled.x[idx]
+            data_sampled.y = data_sampled.y[idx]
+            data_sampled.surf = data_sampled.surf[idx]
+            train_dataset_sampled.append(data_sampled)
+        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True)
+        del(train_dataset_sampled)
+
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg = reg)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
+        del(train_loader)
 
         train_loss_surf_list.append(loss_surf)
         train_loss_vol_list.append(loss_vol)
@@ -249,7 +312,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'MSE', reg
 
     return model
 
-def train_model(device, model, train_loader, optimizer, scheduler, criterion = 'MSE', reg = 1):
+def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0):
     model.train()
     avg_loss_per_var = torch.zeros(4, device = device)
     avg_loss = 0
@@ -266,10 +329,13 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
         out = model(data_clone.x)
         targets = data_clone.y
 
-        if criterion == 'MSE' or criterion == 'MSE_weighted':
+        if criterion == 'MSE':
             loss_criterion = nn.MSELoss(reduction = 'none')
         elif criterion == 'MAE':
             loss_criterion = nn.L1Loss(reduction = 'none')
+        elif criterion == 'L1Smooth':
+            loss_criterion = smoothL1
+        
         loss_per_var = loss_criterion(out, targets).mean(dim = 0)
         total_loss = loss_per_var.mean()
         loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
@@ -277,7 +343,7 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
         loss_surf = loss_surf_var.mean()
         loss_vol = loss_vol_var.mean()
 
-        if criterion == 'MSE_weighted':            
+        if (reg is not None):            
             (loss_vol + reg*loss_surf).backward()           
         else:
             total_loss.backward()
@@ -292,5 +358,9 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion = '
         avg_loss_vol += loss_vol 
         iterNum += 1
 
-    return avg_loss.cpu().data.numpy()/iterNum, avg_loss_per_var.cpu().data.numpy()/iterNum, avg_loss_surf_var.cpu().data.numpy()/iterNum, avg_loss_vol_var.cpu().data.numpy()/iterNum, \
-            avg_loss_surf.cpu().data.numpy()/iterNum, avg_loss_vol.cpu().data.numpy()/iterNum
+    return  avg_loss.cpu().data.numpy()/iterNum,            \
+            avg_loss_per_var.cpu().data.numpy()/iterNum,    \
+            avg_loss_surf_var.cpu().data.numpy()/iterNum,   \
+            avg_loss_vol_var.cpu().data.numpy()/iterNum,    \
+            avg_loss_surf.cpu().data.numpy()/iterNum,       \
+            avg_loss_vol.cpu().data.numpy()/iterNum
