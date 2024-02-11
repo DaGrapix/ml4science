@@ -205,7 +205,7 @@ class AugmentedSimulator():
     def train(self,train_dataset, save_path=None):
         train_dataset = self.process_dataset(dataset=train_dataset,training=True)
         print("Start training")
-        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'MSE_weighted')
+        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'L1Smooth')
         print("Training done")
 
     def predict(self,dataset,**kwargs):
@@ -262,7 +262,7 @@ class AugmentedSimulator():
         return processed
 
 
-def global_train(device, train_dataset, network, hparams, criterion = 'MSE', reg = 1):
+def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
     lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
@@ -329,6 +329,7 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         out = model(data_clone.x)
         targets = data_clone.y
 
+        loss_criterion = nn.MSELoss(reduction = 'none')
         if criterion == 'MSE':
             loss_criterion = nn.MSELoss(reduction = 'none')
         elif criterion == 'MAE':
