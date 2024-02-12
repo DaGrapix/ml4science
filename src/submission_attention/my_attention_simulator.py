@@ -117,27 +117,27 @@ class Ransformer(torch.nn.Module):
     def __init__(self, **kwargs):
         super(Ransformer, self).__init__()
 
-        try: input_size, output_size = kwargs["input_size"], kwargs["output_size"]
-        except: input_size, output_size = 7, 4
+        try: self.layer_sizes, self.size = kwargs["layer_sizes"], len(kwargs["layer_sizes"])
+        except: self.layer_sizes, self.size = [7, 32, 121, 249, 256, 4], 6
 
-        self.proj1 = AttentionBlock(input_size, 32)
-        self.proj2 = AttentionBlock(39, 121)
-        self.proj3 = AttentionBlock(128, 249)
-        self.proj4 = AttentionBlock(256, 256)
-        self.proj5 = torch.nn.Linear(256, output_size)
+        assert self.size >= 3, "Layer sizes must be a list of size greater than 3, including the input and output size"
+
+        self.proj = nn.ModuleList()
+        self.proj.append(AttentionBlock(self.layer_sizes[0], self.layer_sizes[1]))
+        for i in range(1, len(self.layer_sizes) - 2):
+            self.proj.append(AttentionBlock(self.layer_sizes[i] + self.layer_sizes[0], self.layer_sizes[i + 1]))
+        self.proj.append(nn.Linear(self.layer_sizes[self.size - 2], self.layer_sizes[self.size - 1]))
+        print(self.proj)
 
     def forward(self, x: Tensor) -> Tensor:
-        z = self.proj1(x)
-        z = torch.cat([z, x], dim=1)
+        z = self.proj[0](x)
 
-        z = self.proj2(z)
-        z = torch.cat([z, x], dim=1)
+        for i in range(1, len(self.proj) - 1):
+            z = torch.cat([z, x], dim=1)
+            print(z.shape, self.proj[i])
+            z = self.proj[i](z)
 
-        z = self.proj3(z)
-        z = torch.cat([z, x], dim=1)
-
-        z = self.proj4(z)
-        z = self.proj5(z)
+        z = self.proj[len(self.proj) - 1](z)
 
         return z
 
@@ -200,7 +200,7 @@ class AugmentedSimulator():
             torchDataset.append(sampleData)
             start_index += nb_nodes_in_simulation
         
-        return DataLoader(dataset=torchDataset,batch_size=1)
+        return DataLoader(dataset=torchDataset,batch_size=self.hparams["batch_size"])
 
     def train(self,train_dataset, save_path=None):
         train_dataset = self.process_dataset(dataset=train_dataset,training=True)
@@ -225,7 +225,7 @@ class AugmentedSimulator():
             for data in test_dataset:        
                 data_clone = data.clone()
                 data_clone = data_clone.to(self.device)
-                out = self.model(data_clone)
+                out = self.model(data_clone.x)
 
                 targets = data_clone.y
                 loss_criterion = nn.MSELoss(reduction = 'none')
@@ -260,7 +260,6 @@ class AugmentedSimulator():
         except TypeError:
             processed = self.scaler.inverse_transform(data.cpu())
         return processed
-
 
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
