@@ -11,7 +11,7 @@
   "simulator_extra_parameters": {
     "input_size": 7,
     "output_size": 4,
-    "hidden_sizes": [64,64,8,64,64,64,8,64,64],
+    "hidden_sizes": [64,64,8,64,64,64,64,8,64,64],
     "M": 8,
     "alpha": 4,
     "gamma": 1,
