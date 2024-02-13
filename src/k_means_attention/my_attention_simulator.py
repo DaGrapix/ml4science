@@ -71,6 +71,22 @@ def k_means(X:Tensor, k: int=6):
     return cluster_idx, centroids
 
 
+def skeleton_sampling(X:Tensor, k: int=1000, method: Union['uniform', 'kmeans']='kmeans'):
+    if method == 'uniform':
+        clustroid_idx = np.random.choice(a=X.shape[0], size=k, replace=False)
+    elif method == 'kmeans':
+        # extracting a skeleton from the cloudpoint
+        _, centroids = k_means(X, k=k)
+
+        clustroid_idx = []
+        for point in centroids:
+            clustroid_idx.append(torch.argmin(((X - point)**2).mean(dim=1)).item())
+    else:
+        raise ValueError('Invalid method for skeleton sampling')
+
+    return clustroid_idx
+
+
 def smoothL1(pred, target, keptcomponent=False):
     x = pred - target
     y = torch.minimum(x.abs(), x * x)
@@ -89,15 +105,15 @@ def smoothSoftmax(x):
 
 
 class AttentionBlock(torch.nn.Module):
-    def __init__(self, sIN, sOUT, sPROJ=None):
+    def __init__(self, sIN, sOUT, yDIM=7, sPROJ=None):
         super(AttentionBlock, self).__init__()
 
         if sPROJ is None:
             sPROJ = sOUT
 
-        self.k = torch.nn.Linear(sIN, sPROJ)
+        self.k = torch.nn.Linear(yDIM, sPROJ)
         self.q = torch.nn.Linear(sIN, sPROJ)
-        self.v = torch.nn.Linear(sIN, sPROJ)
+        self.v = torch.nn.Linear(yDIM, sPROJ)
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
         YK = self.k(y)
@@ -112,8 +128,10 @@ class AttentionBlock(torch.nn.Module):
 
 
 class Ransformer(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super(Ransformer, self).__init__()
+
+        self.k = kwargs['k']
 
         self.proj1 = AttentionBlock(7, 32)
         self.proj2 = AttentionBlock(39, 121)
@@ -217,10 +235,17 @@ class AugmentedSimulator():
 
         predictions=[]
         with torch.no_grad():
-            for data in test_dataset:        
+            # print(len(test_dataset))
+            for i, data in enumerate(test_dataset):
+                # print(i)
                 data_clone = data.clone()
                 data_clone = data_clone.to(self.device)
-                out = self.model(data_clone.x)
+
+                clustroid_idx = skeleton_sampling(data.clone().pos, k=1000, method='uniform')
+                skeleton = torch.clone(data["x"][clustroid_idx, :])
+                skeleton = skeleton.to(self.device)
+
+                out = self.model(data_clone.x, skeleton)
 
                 targets = data_clone.y
                 loss_criterion = nn.MSELoss(reduction = 'none')
@@ -315,20 +340,17 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
     avg_loss_surf = 0
     avg_loss_vol = 0
     iterNum = 0
-    
-    for data in train_loader:
+
+    # print(len(train_loader))
+    for i, data in enumerate(train_loader):
+        # print(i)
         data_clone = data.clone()
         data_clone = data_clone.to(device)   
         optimizer.zero_grad()
 
-        # extracting a skeleton from the cloudpoint
-        _, centroids = k_means(data.pos, k=model.hparams['k'])
-
-        clustroid_idx = []
-        for point in centroids:
-            clustroid_idx.append(torch.argmin(((data_clone.pos - point)**2).mean(dim=1)).item())
-
+        clustroid_idx = skeleton_sampling(data.clone().pos, k = 1000, method = 'uniform')
         skeleton = torch.clone(data["x"][clustroid_idx,:])
+        skeleton = skeleton.to(device)
 
         out = model(data_clone.x, skeleton)
         targets = data_clone.y

@@ -9,11 +9,10 @@
     "scaler_type": "None"
    },
   "simulator_extra_parameters": {
-    "layer_sizes": [7, 32, 121, 249, 256, 4],
-    "subsampling": 500,
+    "subsampling": 100000,
     "batch_size": 1,
-    "nb_epochs": 1,
-    "lr": 0.001,
+    "nb_epochs": 100,
+    "lr": 0.003,
     "k": 1000
   },
   "training_config": {}
