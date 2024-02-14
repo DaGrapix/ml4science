@@ -133,39 +133,71 @@ class Ransformer(torch.nn.Module):
 
         self.k = kwargs['k']
 
-        self.att1 = AttentionBlock(7, 32)
-        self.att2 = AttentionBlock(71, 121)
-        self.att3 = AttentionBlock(160, 249)
-        self.att4 = AttentionBlock(288, 288)
+        self.att1 = AttentionBlock(8, 32, yDIM=8)
+        self.att2 = AttentionBlock(40, 121, yDIM=8)
+        self.att3 = AttentionBlock(129, 249, yDIM=8)
+        self.att4 = AttentionBlock(257, 8, yDIM=8)
         
-        self.mlp1 = nn.modules.Linear(7, 32)
-        self.mlp2 = nn.modules.Linear(121, 32)
-        self.mlp3 = nn.modules.Linear(249, 32)
+        self.mlp = torch.nn.Sequential(
+            Linear(8, 64),
+            torch.nn.ReLU(),
+            Linear(64, 64),
+            torch.nn.ReLU(),
+            Linear(64, 64),
+            torch.nn.ReLU(),
+            Linear(64, 8),
+        )
 
-        self.mlp = torch.nn.Linear(288, 4)
+        self.encoder = torch.nn.Sequential(
+            Linear(7, 64),
+            nn.ReLU(),
+            Linear(64, 64),
+            nn.ReLU(),
+            Linear(64, 8)
+        )
 
-        self.norm2 = BatchNorm1d(71)
-        self.norm4 = BatchNorm1d(288)
+        self.decoder = torch.nn.Sequential(
+            Linear(8, 64),
+            nn.ReLU(),
+            Linear(64, 64),
+            nn.ReLU(),
+            Linear(64, 4)
+        )
+
+        self.final_mlp = torch.nn.Sequential(
+            Linear(16, 32),
+            torch.nn.ReLU(),
+            Linear(32, 32),
+            torch.nn.ReLU(),
+            Linear(32, 32),
+            torch.nn.ReLU(),
+            Linear(32, 8),
+        )
+
 
     def forward(self, x, y):
-        z1 = self.att1(x, y)
-        w1 = self.mlp1(x)
+        # encoding x and y
+        x_enc = self.encoder(x)
+        y_enc = self.encoder(y)
 
-        z2 = torch.cat([z1, w1, x], dim=1)
-        z2 = self.norm2(z2)
-        z2 = self.att2(z2, y)
-        w2 = self.mlp2(z2)
+        # attention information
+        z = self.att1(x_enc, y_enc)
+        z = torch.cat([z, x_enc], dim=1)
+        z = self.att2(z, y_enc)
+        z = torch.cat([z, x_enc], dim=1)
+        z = self.att3(z, y_enc)
+        z = torch.cat([z, x_enc], dim=1)
+        z = self.att4(z, y_enc)
 
-        z3 = torch.cat([z2, w2, x], dim=1)
-        z3 = self.att3(z3, y)
-        w3 = self.mlp3(z3)
+        # pointwise information
+        w = self.mlp(x_enc)
 
-        z4 = torch.cat([z3, w3, x], dim=1)
-        z4 = self.att4(z4, y)
-        z4 = self.norm4(z4)
-        
-        z5 = self.mlp(z4)
-        return z5
+        # mixing the information
+        x = torch.cat([z, w], dim=1)
+        x = self.final_mlp(x)
+        x = self.decoder(x)
+
+        return x
 
 
 class AugmentedSimulator():

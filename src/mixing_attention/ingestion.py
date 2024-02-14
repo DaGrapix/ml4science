@@ -30,9 +30,9 @@ max_time = 500
 # and the results written to. Change the root_dir to your local directory.
 root_dir = r"C:/Users/pc/Desktop/github/ml4physim/src/"
 default_input_dir = root_dir + "Dataset"
-default_output_dir = root_dir + "k_means_attention/sample_result_submission"
-default_program_dir = root_dir + "k_means_attention"
-default_submission_dir = root_dir + "k_means_attention"
+default_output_dir = root_dir + "mixing_attention/sample_result_submission"
+default_program_dir = root_dir + "mixing_attention"
+default_submission_dir = root_dir + "mixing_attention"
 
 # =============================================================================
 # =========================== END USER OPTIONS ================================
