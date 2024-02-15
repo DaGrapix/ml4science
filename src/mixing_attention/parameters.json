@@ -9,9 +9,9 @@
     "scaler_type": "None"
    },
   "simulator_extra_parameters": {
-    "subsampling": 100000,
-    "batch_size": 1,
-    "nb_epochs": 300,
+    "subsampling": "None",
+    "batch_size": 100000,
+    "nb_epochs": 1,
     "lr": 0.003,
     "k": 1000,
     "method": "uniform"
