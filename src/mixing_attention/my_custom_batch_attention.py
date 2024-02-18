@@ -315,8 +315,8 @@ class AugmentedSimulator():
                                                       x = data_clone.x[batch_id.squeeze()], \
                                                       y = data_clone.y[batch_id.squeeze()], \
                                                       surf = data_clone.surf[batch_id.squeeze()], \
-                                                      skeleton_features = data_clone.skeleton_features[batch_id.squeeze()], \
-                                                      skeleton_pos = data_clone.skeleton_pos[batch_id.squeeze()])
+                                                      skeleton_features = data_clone.skeleton_features, \
+                                                      skeleton_pos = data_clone.skeleton_pos)
                     batch_out = self.model(data_batch.x, data_batch.skeleton_features)
                     out = torch.cat([out, batch_out], dim=0)
                 out = out[:-r,:]
@@ -396,25 +396,27 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                 batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
 
                 for batch_id in batch_indices:
-                    train_dataset_sampled.append(Data(pos = data_sampled.pos[batch_id.squeeze()], \
-                                                      x = data_sampled.x[batch_id.squeeze()], \
-                                                      y = data_sampled.y[batch_id.squeeze()], \
-                                                      surf = data_sampled.surf[batch_id.squeeze()], \
-                                                      skeleton_features = data_sampled.skeleton_features[batch_id.squeeze()], \
-                                                      skeleton_pos = data_sampled.skeleton_pos[batch_id.squeeze()]))
+                    new_data = Data(pos=data_sampled.pos[batch_id.squeeze()], \
+                                                    x=data_sampled.x[batch_id.squeeze()], \
+                                                    y=data_sampled.y[batch_id.squeeze()], \
+                                                    surf=data_sampled.surf[batch_id.squeeze()], \
+                                                    skeleton_features=data_sampled.skeleton_features, \
+                                                    skeleton_pos=data_sampled.skeleton_pos)
+                    train_dataset_sampled.append(new_data)
         else:
             for data in train_dataset:
                 data_sampled = data.clone()
                 X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
                 for batch_id in batch_indices:
-                    train_dataset_sampled.append(Data(pos = data_sampled.pos[batch_id.squeeze()], \
+                    new_data = Data(pos = data_sampled.pos[batch_id.squeeze()], \
                                                         x = data_sampled.x[batch_id.squeeze()], \
                                                         y = data_sampled.y[batch_id.squeeze()], \
                                                         surf = data_sampled.surf[batch_id.squeeze()], \
-                                                        skeleton_features = data_sampled.skeleton_features[batch_id.squeeze()], \
-                                                        skeleton_pos = data_sampled.skeleton_pos[batch_id.squeeze()]))
-        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True, drop_last = True)
+                                                        skeleton_features = data_sampled.skeleton_features, \
+                                                        skeleton_pos = data_sampled.skeleton_pos)
+                    train_dataset_sampled.append(new_data)
+        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True)
         del(train_dataset_sampled)
 
         method = hparams["method"]
