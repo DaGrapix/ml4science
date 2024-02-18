@@ -24,7 +24,6 @@ from lips.dataset.scaler.standard_scaler_iterative import StandardScalerIterativ
 
 
 # K-means clustering
-
 # using a uniform at random initialisation
 def centroid_uniform_initialisation(X:Tensor, k: int=100):
     samples = np.random.choice(a=X.shape[0], replace=False, size=k)
@@ -86,6 +85,15 @@ def skeleton_sampling(X:Tensor, k: int=1000, method: Union['uniform', 'kmeans']=
 
     return clustroid_idx
 
+def data_batching(X: Tensor, batch_size: int=7):
+    n = X.shape[0]
+    q,r = X.shape[0]//batch_size, X.shape[0]%batch_size
+    split_X = []
+    for i in range(X.shape[0]//batch_size):
+        split_X.append(X[batch_size*i:batch_size*(i+1),:])
+    if r > 0:
+        split_X.append(torch.cat([X[q*batch_size:,:], split_X[-1][-(batch_size-r):,:]]))
+    return split_X, r
 
 def smoothL1(pred, target, keptcomponent=False):
     x = pred - target
@@ -218,7 +226,7 @@ class AugmentedSimulator():
 
         self.model = Ransformer(**self.hparams)
 
-    def process_dataset(self, dataset, training: bool) -> DataLoader:
+    def process_dataset(self, dataset, training: bool) -> list[Data]:
         coord_x=dataset.data['x-position']
         coord_y=dataset.data['y-position']
         surf_bool=dataset.extra_data['surface']
@@ -251,19 +259,26 @@ class AugmentedSimulator():
             simulation_labels = torch.tensor(node_labels[start_index:end_index,:], dtype = torch.float) 
             simulation_surface = torch.tensor(surf_bool[start_index:end_index])
 
+            # creating the skeleton
+            clustroid_idx = skeleton_sampling(simulation_positions, k=1000, method=self.hparams['method'])
+            skeleton_features = torch.clone(simulation_features[clustroid_idx,:])
+            skeleton_pos = torch.clone(simulation_positions[clustroid_idx,:])
+
             sampleData=Data(pos=simulation_positions,
                             x=simulation_features, 
                             y=simulation_labels,
-                            surf = simulation_surface.bool()) 
+                            surf = simulation_surface.bool(),
+                            skeleton_features = skeleton_features,
+                            skeleton_pos = skeleton_pos)
             torchDataset.append(sampleData)
             start_index += nb_nodes_in_simulation
         
-        return DataLoader(dataset=torchDataset,batch_size=self.hparams["batch_size"])
+        return torchDataset
 
     def train(self,train_dataset, save_path=None):
         train_dataset = self.process_dataset(dataset=train_dataset,training=True)
         print("Start training")
-        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'L1Smooth', method=self.hparams["method"])
+        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'L1Smooth')
         print("Training done")
 
     def predict(self,dataset,**kwargs):
@@ -290,7 +305,21 @@ class AugmentedSimulator():
                 skeleton = torch.clone(data["x"][clustroid_idx, :])
                 skeleton = skeleton.to(self.device)
 
-                out = self.model(data_clone.x, skeleton)
+                X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
+                batch_indices, r = data_batching(X, batch_size = self.hparams["batch_size"])
+
+                out = torch.empty(size=(0,4))
+                for i in range(len(batch_indices)):
+                    batch_id = batch_indices[i]
+                    data_batch = Data(pos = data_clone.pos[batch_id.squeeze()], \
+                                                      x = data_clone.x[batch_id.squeeze()], \
+                                                      y = data_clone.y[batch_id.squeeze()], \
+                                                      surf = data_clone.surf[batch_id.squeeze()], \
+                                                      skeleton_features = data_clone.skeleton_features[batch_id.squeeze()], \
+                                                      skeleton_pos = data_clone.skeleton_pos[batch_id.squeeze()])
+                    batch_out = self.model(data_batch.x, data_batch.skeleton_features)
+                    out = torch.cat([out, batch_out], dim=0)
+                out = out[:-r,:]
 
                 targets = data_clone.y
                 loss_criterion = nn.MSELoss(reduction = 'none')
@@ -326,13 +355,13 @@ class AugmentedSimulator():
             processed = self.scaler.inverse_transform(data.cpu())
         return processed
 
-def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1, method="kmeans"):
+def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
     lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr = hparams['lr'],
-            total_steps = (len(train_dataset) // hparams['batch_size'] + 1) * hparams['nb_epochs'],
+            total_steps = (len(train_dataset) + 1) * hparams['nb_epochs'],
         )
     start = time.time()
 
@@ -347,6 +376,8 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
     for epoch in pbar_train:
         epoch_nb += 1
         print('Epoch: ', epoch_nb)
+
+        # creating the trainloader
         train_dataset_sampled = []
         if hparams['subsampling'] != "None":
             for data in train_dataset:
@@ -358,13 +389,36 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                 data_sampled.x = data_sampled.x[idx]
                 data_sampled.y = data_sampled.y[idx]
                 data_sampled.surf = data_sampled.surf[idx]
-                train_dataset_sampled.append(data_sampled)
-            train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True)
-            del(train_dataset_sampled)
-        else:
-            train_loader = train_dataset
 
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg = reg, method=method)        
+                train_dataset_sampled.append(data_sampled)
+
+                X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
+                batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+
+                for batch_id in batch_indices:
+                    train_dataset_sampled.append(Data(pos = data_sampled.pos[batch_id.squeeze()], \
+                                                      x = data_sampled.x[batch_id.squeeze()], \
+                                                      y = data_sampled.y[batch_id.squeeze()], \
+                                                      surf = data_sampled.surf[batch_id.squeeze()], \
+                                                      skeleton_features = data_sampled.skeleton_features[batch_id.squeeze()], \
+                                                      skeleton_pos = data_sampled.skeleton_pos[batch_id.squeeze()]))
+        else:
+            for data in train_dataset:
+                data_sampled = data.clone()
+                X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
+                batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+                for batch_id in batch_indices:
+                    train_dataset_sampled.append(Data(pos = data_sampled.pos[batch_id.squeeze()], \
+                                                        x = data_sampled.x[batch_id.squeeze()], \
+                                                        y = data_sampled.y[batch_id.squeeze()], \
+                                                        surf = data_sampled.surf[batch_id.squeeze()], \
+                                                        skeleton_features = data_sampled.skeleton_features[batch_id.squeeze()], \
+                                                        skeleton_pos = data_sampled.skeleton_pos[batch_id.squeeze()]))
+        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True, drop_last = True)
+        del(train_dataset_sampled)
+
+        method = hparams["method"]
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
         del(train_loader)
@@ -397,11 +451,7 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         data_clone = data_clone.to(device)   
         optimizer.zero_grad()
 
-        clustroid_idx = skeleton_sampling(data.clone().pos, k=1000, method=method)
-        skeleton = torch.clone(data["x"][clustroid_idx,:])
-        skeleton = skeleton.to(device)
-
-        out = model(data_clone.x, skeleton)
+        out = model(data_clone.x, data_clone.skeleton_features)
         targets = data_clone.y
 
         loss_criterion = nn.MSELoss(reduction = 'none')

@@ -3,15 +3,15 @@
   "scoringonly": false,
   "simulator_config": {
     "simulator_type": "custom",
-    "simulator_file": "my_attention_simulator",
+    "simulator_file": "my_custom_batch_attention",
     "name": "MyAugmentedSimulator",
     "model": "AugmentedSimulator",
     "scaler_type": "None"
    },
   "simulator_extra_parameters": {
     "subsampling": "None",
-    "batch_size": 100000,
-    "nb_epochs": 1,
+    "batch_size": 50000,
+    "nb_epochs": 10,
     "lr": 0.003,
     "k": 1000,
     "method": "uniform"
