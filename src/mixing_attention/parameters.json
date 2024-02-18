@@ -10,8 +10,8 @@
    },
   "simulator_extra_parameters": {
     "subsampling": "None",
-    "batch_size": 50000,
-    "nb_epochs": 10,
+    "batch_size": 30000,
+    "nb_epochs": 1,
     "lr": 0.003,
     "k": 1000,
     "method": "uniform"

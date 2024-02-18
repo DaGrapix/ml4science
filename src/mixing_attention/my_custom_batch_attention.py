@@ -355,6 +355,21 @@ class AugmentedSimulator():
             processed = self.scaler.inverse_transform(data.cpu())
         return processed
 
+
+# TODO: think about this function
+def calculate_min_batch_size(dataset, batch_size):
+    min_batch_size = np.inf
+
+    for data in dataset:
+        q, r = data.x.shape[0] // batch_size, data.x.shape[0] % batch_size
+        if r > 0:
+            q += 1
+        if q < min_batch_size:
+            min_batch_size = q
+
+    return min_batch_size
+
+
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
@@ -372,6 +387,8 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
 
     pbar_train = tqdm(range(hparams['nb_epochs']), position=0)
     epoch_nb = 0
+
+    # min_batch_size = calculate_min_batch_size(train_dataset, hparams['batch_size'])
 
     for epoch in pbar_train:
         epoch_nb += 1
@@ -394,6 +411,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
 
                 X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+                # batch_indices = batch_indices[:min_batch_size]
 
                 for batch_id in batch_indices:
                     new_data = Data(pos=data_sampled.pos[batch_id.squeeze()], \
@@ -408,6 +426,8 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                 data_sampled = data.clone()
                 X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+                # batch_indices = batch_indices[:min_batch_size]
+
                 for batch_id in batch_indices:
                     new_data = Data(pos = data_sampled.pos[batch_id.squeeze()], \
                                                         x = data_sampled.x[batch_id.squeeze()], \
@@ -416,7 +436,10 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                                                         skeleton_features = data_sampled.skeleton_features, \
                                                         skeleton_pos = data_sampled.skeleton_pos)
                     train_dataset_sampled.append(new_data)
-        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True)
+        # TODO: maybe move train_loader creation outside of the loop?
+        # train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True, drop_last=True)
+        # train_loader = DataLoader(train_dataset_sampled, batch_size = min_batch_size, shuffle = True, drop_last=True)
+        train_loader = DataLoader(train_dataset_sampled, batch_size = 2, shuffle = True, drop_last=True)
         del(train_dataset_sampled)
 
         method = hparams["method"]
