@@ -356,28 +356,9 @@ class AugmentedSimulator():
         return processed
 
 
-# TODO: think about this function
-def calculate_min_batch_size(dataset, batch_size):
-    min_batch_size = np.inf
-
-    for data in dataset:
-        q, r = data.x.shape[0] // batch_size, data.x.shape[0] % batch_size
-        if r > 0:
-            q += 1
-        if q < min_batch_size:
-            min_batch_size = q
-
-    return min_batch_size
-
-
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
-    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr = hparams['lr'],
-            total_steps = (len(train_dataset) + 1) * hparams['nb_epochs'],
-        )
     start = time.time()
 
     train_loss_surf_list = []
@@ -436,13 +417,15 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                                                         skeleton_features = data_sampled.skeleton_features, \
                                                         skeleton_pos = data_sampled.skeleton_pos)
                     train_dataset_sampled.append(new_data)
-        # TODO: maybe move train_loader creation outside of the loop?
-        # train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True, drop_last=True)
-        # train_loader = DataLoader(train_dataset_sampled, batch_size = min_batch_size, shuffle = True, drop_last=True)
-        train_loader = DataLoader(train_dataset_sampled, batch_size = 2, shuffle = True, drop_last=True)
+        train_loader = DataLoader(train_dataset_sampled, batch_size = 1, shuffle = True, drop_last=True)
         del(train_dataset_sampled)
 
         method = hparams["method"]
+        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=hparams['lr'],
+            total_steps=(len(train_loader) + 1) * hparams['nb_epochs'],
+        )
         train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
