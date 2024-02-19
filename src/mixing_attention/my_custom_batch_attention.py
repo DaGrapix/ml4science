@@ -316,14 +316,11 @@ class AugmentedSimulator():
                     batch_out = self.model(data_batch.x, data_batch.skeleton_features)
                     out = torch.cat([out, batch_out], dim=0)
                 
-                print("out shape before slicing", out.shape)
                 # removing the duplicates from the output
                 if r>0:
                     out = out[:-(self.hparams["batch_size"]-r),:]
 
-                print("out shape after slicing", out.shape)
                 targets = data.y.to(self.device)
-                print("target shape", out.shape)
                 loss_criterion = nn.MSELoss(reduction = 'none')
 
                 loss_per_var = loss_criterion(out, targets).mean(dim = 0)
@@ -480,7 +477,6 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         loss_criterion = nn.L1Loss(reduction = 'none')
     elif criterion == 'L1Smooth':
         loss_criterion = smoothL1
-    print(f"Using {criterion} as loss function")
 
     for i, data in tqdm(enumerate(train_loader)):
         data_clone = data.clone()
