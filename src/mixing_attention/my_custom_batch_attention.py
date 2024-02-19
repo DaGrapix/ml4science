@@ -319,14 +319,13 @@ class AugmentedSimulator():
                 print("out shape before slicing", out.shape)
                 # removing the duplicates from the output
                 if r>0:
-                    out = out[:-r,:]
+                    out = out[:-(self.hparams["batch_size"]-r),:]
 
                 print("out shape after slicing", out.shape)
                 targets = data.y.to(self.device)
                 print("target shape", out.shape)
                 loss_criterion = nn.MSELoss(reduction = 'none')
 
-                # TODO: RuntimeError: The size of tensor a (150967) must match the size of tensor b (179033) at non-singleton dimension 0
                 loss_per_var = loss_criterion(out, targets).mean(dim = 0)
                 loss = loss_per_var.mean()
                 loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
