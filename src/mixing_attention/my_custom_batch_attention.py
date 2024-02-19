@@ -376,6 +376,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
 
     # If we don't have a subsampling value, we use the whole dataset
     if hparams['subsampling'] == "None":
+        print(f"No subsampling, batch size of {hparams['batch_size']}")
         train_dataset_sampled = []
         for data in train_dataset:
                 data_clone = data.clone()
@@ -400,18 +401,22 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             total_steps = total_steps,
         )
     else:
+        print(f"Subsampling with {hparams['subsampling']} samples per simulation and {hparams['batch_size']} batch size")
         iterations_per_simulation = hparams["subsampling"]//hparams["batch_size"]
         if hparams["subsampling"]%hparams["batch_size"] != 0: iterations_per_simulation += 1
         total_steps = len(train_dataset) * iterations_per_simulation
         total_steps = total_steps//hparams["dataloader_batch_size"]
         if total_steps%hparams["dataloader_batch_size"] != 0: total_steps += 1
-        total_steps = total_steps * hparams['nb_epochs']
+        total_steps = total_steps*hparams['nb_epochs']
         
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
                 optimizer,
                 max_lr = hparams['lr'],
                 total_steps = total_steps,
             )
+    print(f"nb_epochs: {hparams['nb_epochs']}")
+    print(f"number of simulations: {len(train_dataset)}")
+    print(f"scheduler total_steps: {total_steps}")
 
     for epoch in pbar_train:
         epoch_nb += 1
@@ -448,11 +453,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             del(train_dataset_sampled)
 
         method = hparams["method"]
-        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=hparams['lr'],
-            total_steps=(len(train_loader) + 1) * hparams['nb_epochs'],
-        )
+
         train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
