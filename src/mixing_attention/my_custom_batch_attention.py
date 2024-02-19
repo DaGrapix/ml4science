@@ -301,14 +301,10 @@ class AugmentedSimulator():
                 data_clone = data.clone()
                 data_clone = data_clone.to(self.device)
 
-                clustroid_idx = skeleton_sampling(data.clone().pos, k=1000, method='kmeans')
-                skeleton = torch.clone(data["x"][clustroid_idx, :])
-                skeleton = skeleton.to(self.device)
-
                 X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = self.hparams["batch_size"])
 
-                out = torch.empty(size=(0,4))
+                out = torch.empty(size=(0,4)).to(self.device)
                 for i in range(len(batch_indices)):
                     batch_id = batch_indices[i]
                     data_batch = Data(pos = data_clone.pos[batch_id.squeeze()], \
@@ -319,9 +315,15 @@ class AugmentedSimulator():
                                                       skeleton_pos = data_clone.skeleton_pos)
                     batch_out = self.model(data_batch.x, data_batch.skeleton_features)
                     out = torch.cat([out, batch_out], dim=0)
-                out = out[:-r,:]
+                
+                print("out shape before slicing", out.shape)
+                # removing the duplicates from the output
+                if r>0:
+                    out = out[:-r,:]
 
-                targets = data_clone.y
+                print("out shape after slicing", out.shape)
+                targets = data.y.to(self.device)
+                print("target shape", out.shape)
                 loss_criterion = nn.MSELoss(reduction = 'none')
 
                 loss_per_var = loss_criterion(out, targets).mean(dim = 0)
@@ -372,12 +374,7 @@ def calculate_min_batch_size(dataset, batch_size):
 
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
-    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr = hparams['lr'],
-            total_steps = (len(train_dataset) + 1) * hparams['nb_epochs'],
-        )
+    optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])    
     start = time.time()
 
     train_loss_surf_list = []
@@ -390,13 +387,52 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
 
     # min_batch_size = calculate_min_batch_size(train_dataset, hparams['batch_size'])
 
+    # If we don't have a subsampling value, we use the whole dataset
+    if hparams['subsampling'] == "None":
+        train_dataset_sampled = []
+        for data in train_dataset:
+                data_clone = data.clone()
+                X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
+                batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+
+                for batch_id in batch_indices:
+                    new_data = Data(pos = data_clone.pos[batch_id.squeeze()], \
+                                                        x = data_clone.x[batch_id.squeeze()], \
+                                                        y = data_clone.y[batch_id.squeeze()], \
+                                                        surf = data_clone.surf[batch_id.squeeze()], \
+                                                        skeleton_features = data_clone.skeleton_features, \
+                                                        skeleton_pos = data_clone.skeleton_pos)
+                    train_dataset_sampled.append(new_data)
+        train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
+        del(train_dataset_sampled)
+
+        total_steps = len(train_loader) * hparams['nb_epochs']
+        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr = hparams['lr'],
+            total_steps = total_steps,
+        )
+    else:
+        iterations_per_simulation = hparams["subsampling"]//hparams["batch_size"]
+        if hparams["subsampling"]%hparams["batch_size"] != 0: iterations_per_simulation += 1
+        total_steps = len(train_dataset) * iterations_per_simulation
+        total_steps = total_steps//hparams["dataloader_batch_size"]
+        if total_steps%hparams["dataloader_batch_size"] != 0: total_steps += 1
+        total_steps = total_steps * hparams['nb_epochs']
+        
+        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr = hparams['lr'],
+                total_steps = total_steps,
+            )
+
     for epoch in pbar_train:
         epoch_nb += 1
         print('Epoch: ', epoch_nb)
 
-        # creating the trainloader
-        train_dataset_sampled = []
+        # If we have a subsampling value, we sample a new random dataset at each epoch
         if hparams['subsampling'] != "None":
+            train_dataset_sampled = []
             for data in train_dataset:
                 data_sampled = data.clone()
                 idx = random.sample(range(data_sampled.x.size(0)), hparams['subsampling'])
@@ -421,26 +457,8 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                                                     skeleton_features=data_sampled.skeleton_features, \
                                                     skeleton_pos=data_sampled.skeleton_pos)
                     train_dataset_sampled.append(new_data)
-        else:
-            for data in train_dataset:
-                data_sampled = data.clone()
-                X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
-                batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
-                # batch_indices = batch_indices[:min_batch_size]
-
-                for batch_id in batch_indices:
-                    new_data = Data(pos = data_sampled.pos[batch_id.squeeze()], \
-                                                        x = data_sampled.x[batch_id.squeeze()], \
-                                                        y = data_sampled.y[batch_id.squeeze()], \
-                                                        surf = data_sampled.surf[batch_id.squeeze()], \
-                                                        skeleton_features = data_sampled.skeleton_features, \
-                                                        skeleton_pos = data_sampled.skeleton_pos)
-                    train_dataset_sampled.append(new_data)
-        # TODO: maybe move train_loader creation outside of the loop?
-        # train_loader = DataLoader(train_dataset_sampled, batch_size = hparams['batch_size'], shuffle = True, drop_last=True)
-        # train_loader = DataLoader(train_dataset_sampled, batch_size = min_batch_size, shuffle = True, drop_last=True)
-        train_loader = DataLoader(train_dataset_sampled, batch_size = 2, shuffle = True, drop_last=True)
-        del(train_dataset_sampled)
+            train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
+            del(train_dataset_sampled)
 
         method = hparams["method"]
         train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
@@ -469,23 +487,23 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
     avg_loss_vol = 0
     iterNum = 0
 
-    # print(len(train_loader))
-    for i, data in enumerate(train_loader):
-        # print(i)
+    # defining the loss function
+    loss_criterion = nn.MSELoss(reduction = 'none')
+    if criterion == 'MSE':
+        loss_criterion = nn.MSELoss(reduction = 'none')
+    elif criterion == 'MAE':
+        loss_criterion = nn.L1Loss(reduction = 'none')
+    elif criterion == 'L1Smooth':
+        loss_criterion = smoothL1
+    print(f"Using {criterion} as loss function")
+
+    for i, data in tqdm(enumerate(train_loader)):
         data_clone = data.clone()
         data_clone = data_clone.to(device)   
         optimizer.zero_grad()
 
         out = model(data_clone.x, data_clone.skeleton_features)
         targets = data_clone.y
-
-        loss_criterion = nn.MSELoss(reduction = 'none')
-        if criterion == 'MSE':
-            loss_criterion = nn.MSELoss(reduction = 'none')
-        elif criterion == 'MAE':
-            loss_criterion = nn.L1Loss(reduction = 'none')
-        elif criterion == 'L1Smooth':
-            loss_criterion = smoothL1
         
         loss_per_var = loss_criterion(out, targets).mean(dim = 0)
         total_loss = loss_per_var.mean()

@@ -9,12 +9,13 @@
     "scaler_type": "None"
    },
   "simulator_extra_parameters": {
-    "subsampling": "None",
+    "subsampling": 100000,
     "batch_size": 30000,
     "nb_epochs": 1,
     "lr": 0.003,
     "k": 1000,
-    "method": "uniform"
+    "method": "uniform",
+    "dataloader_batch_size": 1
   },
   "training_config": {}
 }
