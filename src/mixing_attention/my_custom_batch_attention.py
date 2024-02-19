@@ -360,7 +360,7 @@ class AugmentedSimulator():
 
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
     model = network.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])    
+    optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
     start = time.time()
 
     train_loss_surf_list = []
@@ -378,27 +378,22 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
         print(f"No subsampling, batch size of {hparams['batch_size']}")
         train_dataset_sampled = []
         for data in train_dataset:
-                data_clone = data.clone()
-                X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
-                batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
+            data_clone = data.clone()
+            X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
+            batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
 
-                for batch_id in batch_indices:
-                    new_data = Data(pos = data_clone.pos[batch_id.squeeze()], \
-                                                        x = data_clone.x[batch_id.squeeze()], \
-                                                        y = data_clone.y[batch_id.squeeze()], \
-                                                        surf = data_clone.surf[batch_id.squeeze()], \
-                                                        skeleton_features = data_clone.skeleton_features, \
-                                                        skeleton_pos = data_clone.skeleton_pos)
-                    train_dataset_sampled.append(new_data)
+            for batch_id in batch_indices:
+                new_data = Data(pos = data_clone.pos[batch_id.squeeze()], \
+                                x = data_clone.x[batch_id.squeeze()], \
+                                y = data_clone.y[batch_id.squeeze()], \
+                                surf = data_clone.surf[batch_id.squeeze()], \
+                                skeleton_features = data_clone.skeleton_features, \
+                                skeleton_pos = data_clone.skeleton_pos)
+                train_dataset_sampled.append(new_data)
         train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
         del(train_dataset_sampled)
 
         total_steps = len(train_loader) * hparams['nb_epochs']
-        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr = hparams['lr'],
-            total_steps = total_steps,
-        )
     else:
         print(f"Subsampling with {hparams['subsampling']} samples per simulation and {hparams['batch_size']} batch size")
         iterations_per_simulation = hparams["subsampling"]//hparams["batch_size"]
@@ -407,12 +402,13 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
         total_steps = total_steps//hparams["dataloader_batch_size"]
         if total_steps%hparams["dataloader_batch_size"] != 0: total_steps += 1
         total_steps = total_steps*hparams['nb_epochs']
-        
-        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-                optimizer,
-                max_lr = hparams['lr'],
-                total_steps = total_steps,
-            )
+
+    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr = hparams['lr'],
+        total_steps = total_steps,
+    )
+
     print(f"nb_epochs: {hparams['nb_epochs']}")
     print(f"number of simulations: {len(train_dataset)}")
     print(f"scheduler total_steps: {total_steps}")
@@ -434,26 +430,23 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
                 data_sampled.y = data_sampled.y[idx]
                 data_sampled.surf = data_sampled.surf[idx]
 
-                train_dataset_sampled.append(data_sampled)
-
                 X = torch.arange(data_sampled.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = hparams["batch_size"])
-                # batch_indices = batch_indices[:min_batch_size]
 
                 for batch_id in batch_indices:
                     new_data = Data(pos=data_sampled.pos[batch_id.squeeze()], \
-                                                    x=data_sampled.x[batch_id.squeeze()], \
-                                                    y=data_sampled.y[batch_id.squeeze()], \
-                                                    surf=data_sampled.surf[batch_id.squeeze()], \
-                                                    skeleton_features=data_sampled.skeleton_features, \
-                                                    skeleton_pos=data_sampled.skeleton_pos)
+                                    x=data_sampled.x[batch_id.squeeze()], \
+                                    y=data_sampled.y[batch_id.squeeze()], \
+                                    surf=data_sampled.surf[batch_id.squeeze()], \
+                                    skeleton_features=data_sampled.skeleton_features, \
+                                    skeleton_pos=data_sampled.skeleton_pos)
                     train_dataset_sampled.append(new_data)
             train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
             del(train_dataset_sampled)
 
         method = hparams["method"]
 
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
         del(train_loader)
