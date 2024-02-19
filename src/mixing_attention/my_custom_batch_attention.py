@@ -308,7 +308,7 @@ class AugmentedSimulator():
                 X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
                 batch_indices, r = data_batching(X, batch_size = self.hparams["batch_size"])
 
-                out = torch.empty(size=(0,4))
+                out = torch.empty(size=(0,4)).to(self.device)
                 for i in range(len(batch_indices)):
                     batch_id = batch_indices[i]
                     data_batch = Data(pos = data_clone.pos[batch_id.squeeze()], \
@@ -324,6 +324,7 @@ class AugmentedSimulator():
                 targets = data_clone.y
                 loss_criterion = nn.MSELoss(reduction = 'none')
 
+                # TODO: RuntimeError: The size of tensor a (150967) must match the size of tensor b (179033) at non-singleton dimension 0
                 loss_per_var = loss_criterion(out, targets).mean(dim = 0)
                 loss = loss_per_var.mean()
                 loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
