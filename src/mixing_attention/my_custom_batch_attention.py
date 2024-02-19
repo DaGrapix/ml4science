@@ -326,6 +326,7 @@ class AugmentedSimulator():
                 print("target shape", out.shape)
                 loss_criterion = nn.MSELoss(reduction = 'none')
 
+                # TODO: RuntimeError: The size of tensor a (150967) must match the size of tensor b (179033) at non-singleton dimension 0
                 loss_per_var = loss_criterion(out, targets).mean(dim = 0)
                 loss = loss_per_var.mean()
                 loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
@@ -356,20 +357,6 @@ class AugmentedSimulator():
         except TypeError:
             processed = self.scaler.inverse_transform(data.cpu())
         return processed
-
-
-# TODO: think about this function
-def calculate_min_batch_size(dataset, batch_size):
-    min_batch_size = np.inf
-
-    for data in dataset:
-        q, r = data.x.shape[0] // batch_size, data.x.shape[0] % batch_size
-        if r > 0:
-            q += 1
-        if q < min_batch_size:
-            min_batch_size = q
-
-    return min_batch_size
 
 
 def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
@@ -461,6 +448,11 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             del(train_dataset_sampled)
 
         method = hparams["method"]
+        lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=hparams['lr'],
+            total_steps=(len(train_loader) + 1) * hparams['nb_epochs'],
+        )
         train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)        
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
