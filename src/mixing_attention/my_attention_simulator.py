@@ -126,6 +126,17 @@ class AttentionBlock(torch.nn.Module):
 
         return output
 
+class MLP(torch.nn.Module):
+    def __init__(self, layers_sizes):
+        super(MLP, self).__init__()
+        layers = [torch.nn.Linear(layers_sizes[i], layers_sizes[i+1]) for i in range(len(layers_sizes)-1)]
+        self.mlp = torch.nn.Sequential()
+        for i, layer in enumerate(layers):
+            self.mlp.append(layer)
+            if i < len(layers) - 1:
+                self.mlp.append(torch.nn.ReLU())
+    def forward(self, x):
+        return self.mlp(x)
 
 class Ransformer(torch.nn.Module):
     def __init__(self, **kwargs):
@@ -133,71 +144,65 @@ class Ransformer(torch.nn.Module):
 
         self.k = kwargs['k']
 
-        self.att1 = AttentionBlock(8, 32, yDIM=8)
-        self.att2 = AttentionBlock(40, 121, yDIM=8)
-        self.att3 = AttentionBlock(129, 249, yDIM=8)
-        self.att4 = AttentionBlock(257, 8, yDIM=8)
-        
-        self.mlp = torch.nn.Sequential(
-            Linear(8, 64),
-            torch.nn.ReLU(),
-            Linear(64, 64),
-            torch.nn.ReLU(),
-            Linear(64, 64),
-            torch.nn.ReLU(),
-            Linear(64, 8),
-        )
+        self.batch_norm = torch.nn.BatchNorm1d(16)
+
+        self.layer_norm1 = torch.nn.LayerNorm(16)
+        self.att1 = AttentionBlock(16, 128, yDIM=8)
+        self.mlp1 = MLP([128, 64, 64, 64, 128])
+
+        self_layer_norm2 = torch.nn.LayerNorm(136)
+        self.att2 = AttentionBlock(136, 64, yDIM=8)
+        self.mlp2 = MLP([64, 32, 32, 32, 64])
+
+        self_layer_norm3 = torch.nn.LayerNorm(72)
+        self.att3 = AttentionBlock(72, 16, yDIM=8)
+        self.mlp3 = MLP([16, 8, 8, 8, 16])
 
         self.encoder = torch.nn.Sequential(
             Linear(7, 64),
             nn.ReLU(),
             Linear(64, 64),
             nn.ReLU(),
-            Linear(64, 8)
+            Linear(64, 16)
         )
 
         self.decoder = torch.nn.Sequential(
-            Linear(8, 64),
+            Linear(16, 64),
             nn.ReLU(),
             Linear(64, 64),
             nn.ReLU(),
             Linear(64, 4)
         )
 
-        self.final_mlp = torch.nn.Sequential(
-            Linear(16, 32),
-            torch.nn.ReLU(),
-            Linear(32, 32),
-            torch.nn.ReLU(),
-            Linear(32, 32),
-            torch.nn.ReLU(),
-            Linear(32, 8),
-        )
-
-
     def forward(self, x, y):
         # encoding x and y
         x_enc = self.encoder(x)
         y_enc = self.encoder(y)
 
-        # attention information
-        z = self.att1(x_enc, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att2(z, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att3(z, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att4(z, y_enc)
+        # batch normalization on the skeleton
+        y_norm = self.batch_norm(y_enc)
 
-        # pointwise information
-        w = self.mlp(x_enc)
+        # first transformer layer 
+        z = self.layer_norm1(x_enc)
+        z = self.att1(z, y_norm)
+        z = self.mlp1(z)
 
-        # mixing the information
-        x = torch.cat([z, w], dim=1)
-        x = self.final_mlp(x)
-        x = self.decoder(x)
+        # second transformer layer
+        z = torch.cat([z, x_enc], dim=1)
+        z = self.layer_norm2(z)
+        z = self.att2(z, y_norm)
+        z = self.mlp2(z)
 
-        return x
+        # third transformer layer
+        z = torch.cat([z, x_enc], dim=1)
+        z = self.layer_norm3(z)
+        z = self.att3(z, y_norm)
+        z = self.mlp3(z)
+
+        # decoding the output
+        out = self.decoder(z)
+
+        return out
 
 
 class AugmentedSimulator():
