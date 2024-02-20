@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import BatchNorm1d, Identity
+from torch.nn import BatchNorm1d, Identity, LayerNorm
 from torch.nn import Linear
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
@@ -111,6 +111,18 @@ def smoothSoftmax(x):
     denom = num.sum(1).unsqueeze(-1)
     return num / denom
 
+class MLP(torch.nn.Module):
+    def __init__(self, layers_sizes):
+        super(MLP, self).__init__()
+        layers = [torch.nn.Linear(layers_sizes[i], layers_sizes[i+1]) for i in range(len(layers_sizes)-1)]
+        self.mlp = torch.nn.Sequential()
+        for i, layer in enumerate(layers):
+            self.mlp.append(layer)
+            if i < len(layers) - 1:
+                self.mlp.append(torch.nn.ReLU())
+    def forward(self, x):
+        return self.mlp(x)
+
 
 class AttentionBlock(torch.nn.Module):
     def __init__(self, sIN, sOUT, yDIM=7, sPROJ=None):
@@ -134,6 +146,24 @@ class AttentionBlock(torch.nn.Module):
 
         return output
 
+class TransformerBlock(torch.nn.Module):
+    def __init__(self, sIN, sOUT, yDIM=7, sPROJ=None, layers: list[int] = [8, 64, 64, 8]):
+        super(TransformerBlock, self).__init__()
+        self.att = AttentionBlock(sIN, sOUT, yDIM, sPROJ)
+        self.mlp = MLP(layers)
+        self.layer_norm = LayerNorm(sOUT)
+
+    def forward(self, x: Tensor, y: Tensor) -> Tensor:
+        z1 = self.layer_norm(x)
+        w = self.layer_norm(y)
+        z1 = self.att(z1, w)
+        z1 = z1 + x
+
+        z2 = self.layer_norm(z1)
+        z2 = self.mlp(z2)
+        z2 = z2 + z1
+
+        return z2
 
 class Ransformer(torch.nn.Module):
     def __init__(self, **kwargs):
@@ -141,71 +171,41 @@ class Ransformer(torch.nn.Module):
 
         self.k = kwargs['k']
 
-        self.att1 = AttentionBlock(8, 32, yDIM=8)
-        self.att2 = AttentionBlock(40, 121, yDIM=8)
-        self.att3 = AttentionBlock(129, 249, yDIM=8)
-        self.att4 = AttentionBlock(257, 8, yDIM=8)
-        
-        self.mlp = torch.nn.Sequential(
-            Linear(8, 64),
-            torch.nn.ReLU(),
-            Linear(64, 64),
-            torch.nn.ReLU(),
-            Linear(64, 64),
-            torch.nn.ReLU(),
-            Linear(64, 8),
-        )
-
         self.encoder = torch.nn.Sequential(
             Linear(7, 64),
             nn.ReLU(),
             Linear(64, 64),
             nn.ReLU(),
-            Linear(64, 8)
+            Linear(64, 32)
         )
 
+        self.transf1 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        self.transf2 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        self.transf3 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+
         self.decoder = torch.nn.Sequential(
-            Linear(8, 64),
+            Linear(32, 64),
             nn.ReLU(),
             Linear(64, 64),
             nn.ReLU(),
-            Linear(64, 4)
+            Linear(64, 32),
+            nn.ReLU(),
+            Linear(32, 16),
+            nn.ReLU(),
+            Linear(16, 4)
         )
-
-        self.final_mlp = torch.nn.Sequential(
-            Linear(16, 32),
-            torch.nn.ReLU(),
-            Linear(32, 32),
-            torch.nn.ReLU(),
-            Linear(32, 32),
-            torch.nn.ReLU(),
-            Linear(32, 8),
-        )
-
 
     def forward(self, x, y):
         # encoding x and y
         x_enc = self.encoder(x)
         y_enc = self.encoder(y)
 
-        # attention information
-        z = self.att1(x_enc, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att2(z, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att3(z, y_enc)
-        z = torch.cat([z, x_enc], dim=1)
-        z = self.att4(z, y_enc)
+        z = self.transf1(x_enc, y_enc)
+        z = self.transf2(z, y_enc)
+        z = self.transf3(z, y_enc)
 
-        # pointwise information
-        w = self.mlp(x_enc)
-
-        # mixing the information
-        x = torch.cat([z, w], dim=1)
-        x = self.final_mlp(x)
-        x = self.decoder(x)
-
-        return x
+        out = self.decoder(z)
+        return out
 
 
 class AugmentedSimulator():

@@ -28,7 +28,7 @@ max_time = 500
 # Use default location for the input and output data:
 # If no arguments to run.py are provided, this is where the data will be found
 # and the results written to. Change the root_dir to your local directory.
-root_dir = r"C:/Users/pc/Desktop/github/ml4physim/src/"
+root_dir = r"C:/Users/antho/Desktop/ml4physim/src/"
 default_input_dir = root_dir + "Dataset"
 default_output_dir = root_dir + "mixing_attention/sample_result_submission"
 default_program_dir = root_dir + "mixing_attention"
@@ -237,7 +237,7 @@ if __name__=="__main__" :
     if simulator_parameters["simulator_type"] == "simple_torch":
         print("Loading LIPS torch simulator " + simulator_parameters["model"])
         simulator_module = importlib.import_module("lips.augmented_simulators.torch_models."+simulator_parameters["model_type"])
-        simulator_class = getattr(simulator_module, simulator_parameters["model"])
+        simualtor_class = getattr(simulator_module, simulator_parameters["model"])
 
         from lips.augmented_simulators.torch_simulator import TorchSimulator
         simulator = TorchSimulator(name=simulator_parameters["name"],
