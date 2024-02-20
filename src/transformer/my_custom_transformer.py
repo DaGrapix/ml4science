@@ -152,10 +152,11 @@ class TransformerBlock(torch.nn.Module):
         self.att = AttentionBlock(sIN, sOUT, yDIM, sPROJ)
         self.mlp = MLP(layers)
         self.layer_norm = LayerNorm(sOUT)
+        self.batch_norm = BatchNorm1d(sOUT)
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
         z1 = self.layer_norm(x)
-        w = self.layer_norm(y)
+        w = self.batch_norm(y)
         z1 = self.att(z1, w)
         z1 = z1 + x
 
