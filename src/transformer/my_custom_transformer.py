@@ -3,7 +3,7 @@ import time
 import random
 import math 
 import datetime as dt
-from typing import Union
+from typing import List, Union
 
 from tqdm import tqdm
 import numpy as np
@@ -147,7 +147,7 @@ class AttentionBlock(torch.nn.Module):
         return output
 
 class TransformerBlock(torch.nn.Module):
-    def __init__(self, sIN, sOUT, yDIM=7, sPROJ=None, layers: list[int] = [8, 64, 64, 8]):
+    def __init__(self, sIN, sOUT, yDIM=7, sPROJ=None, layers: List[int] = [8, 64, 64, 8]):
         super(TransformerBlock, self).__init__()
         self.att = AttentionBlock(sIN, sOUT, yDIM, sPROJ)
         self.mlp = MLP(layers)
