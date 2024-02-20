@@ -147,15 +147,15 @@ class Ransformer(torch.nn.Module):
         self.batch_norm = torch.nn.BatchNorm1d(16)
 
         self.layer_norm1 = torch.nn.LayerNorm(16)
-        self.att1 = AttentionBlock(16, 128, yDIM=8)
+        self.att1 = AttentionBlock(16, 128, yDIM=16)
         self.mlp1 = MLP([128, 64, 64, 64, 128])
 
-        self_layer_norm2 = torch.nn.LayerNorm(136)
-        self.att2 = AttentionBlock(136, 64, yDIM=8)
+        self.layer_norm2 = torch.nn.LayerNorm(144)
+        self.att2 = AttentionBlock(144, 64, yDIM=16)
         self.mlp2 = MLP([64, 32, 32, 32, 64])
 
-        self_layer_norm3 = torch.nn.LayerNorm(72)
-        self.att3 = AttentionBlock(72, 16, yDIM=8)
+        self.layer_norm3 = torch.nn.LayerNorm(80)
+        self.att3 = AttentionBlock(80, 16, yDIM=16)
         self.mlp3 = MLP([16, 8, 8, 8, 16])
 
         self.encoder = torch.nn.Sequential(
