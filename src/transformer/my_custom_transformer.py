@@ -25,7 +25,7 @@ from lips.dataset.scaler.standard_scaler_iterative import StandardScalerIterativ
 
 # K-means clustering
 # using a uniform at random initialisation
-def centroid_uniform_initialisation(X:Tensor, k: int=100):
+def centroid_uniform_initialisation(X:Tensor, k: int=1000):
     samples = np.random.choice(a=X.shape[0], replace=False, size=k)
     return X[samples,:]
 
@@ -49,10 +49,10 @@ def kmeans_plusplus_initialisation(X: torch.Tensor, k: int):
 
     return centroids
 
-def k_means(X:Tensor, k: int=6, n_iter: int=100, method: str='kmeans'):
-    if method == 'uniform':     centroids = centroid_uniform_initialisation(X,k)
-    elif method == 'kmeans':    centroids = kmeans_plusplus_initialisation(X,k)
-    else:                       raise ValueError('Invalid method for centroid initialisation')
+def k_means(X:Tensor, k: int=1000, n_iter: int=100, method: str='kmeans_uniform'):
+    if method == 'kmeans_uniform':      centroids = centroid_uniform_initialisation(X,k)
+    elif method == 'kmeans_pp':         centroids = kmeans_plusplus_initialisation(X,k)
+    else:                               raise ValueError('Invalid method for centroid initialisation')
 
     for i in range(n_iter):
         # compute the distance of each point to the centroids
@@ -72,16 +72,19 @@ def k_means(X:Tensor, k: int=6, n_iter: int=100, method: str='kmeans'):
     return cluster_idx, centroids
 
 
-def skeleton_sampling(X:Tensor, k: int=1000, method: str='kmeans', n_iter: int=100):
-    if method == 'uniform':
-        _, centroids = k_means(X, k=k, n_iter=n_iter, method='uniform')
+def skeleton_sampling(X:Tensor, k: int=1000, method: str='kmeans_uniform', n_iter: int=100):
+    if method == 'kmeans_uniform':
+        _, centroids = k_means(X, k=k, n_iter=n_iter, method=method)
         #clustroid_idx = np.random.choice(a=X.shape[0], size=k, replace=False)
-    elif method == 'kmeans':
+    elif method == 'kmeans_pp':
         # extracting a skeleton from the cloudpoint
-        _, centroids = k_means(X, k=k, n_iter=n_iter, method='kmeans')
+        _, centroids = k_means(X, k=k, n_iter=n_iter, method=method)
     elif method == 'kmeans_pp_init':
         centroids = kmeans_plusplus_initialisation(X, k)
-    else: raise ValueError('Invalid method for skeleton sampling, must be one of [uniform, kmeans, kmeans_pp_init]')
+    elif method == 'random':
+        clustroid_idx = np.random.choice(a=X.shape[0], size=k, replace=False)
+        return clustroid_idx
+    else: raise ValueError('Invalid method for skeleton sampling, must be one of kmeans_uniform, kmeans_pp, kmeans_pp_init, random')
 
     clustroid_idx = []
     for point in centroids:
@@ -106,7 +109,6 @@ def smoothL1(pred, target, keptcomponent=False):
         return y.mean(0)
     else:
         return y.mean()
-
 
 def smoothSoftmax(x):
     s = torch.nn.functional.softmax(x, dim=1)
@@ -135,16 +137,16 @@ class AttentionBlock(torch.nn.Module):
         if sPROJ is None:
             sPROJ = sOUT
 
-        self.k = torch.nn.Linear(yDIM, sPROJ)
-        self.q = torch.nn.Linear(sIN, sPROJ)
-        self.v = torch.nn.Linear(yDIM, sPROJ)
+        self.k = torch.nn.Linear(yDIM, sPROJ, bias=False)
+        self.q = torch.nn.Linear(sIN, sPROJ, bias=False)
+        self.v = torch.nn.Linear(yDIM, sPROJ, bias=False)
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
         YK = self.k(y)
         XQ = self.q(x)
         YV = self.v(y)
 
-        M = torch.matmul(XQ, YK.t())
+        M = torch.matmul(XQ, YK.t())/np.sqrt(YK.shape[1])
         M = smoothSoftmax(M)
         output = torch.matmul(M, YV)
 
@@ -187,6 +189,8 @@ class Ransformer(torch.nn.Module):
         self.transf1 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
         self.transf2 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
         self.transf3 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        self.transf4 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        self.transf5 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
 
         self.decoder = torch.nn.Sequential(
             Linear(32, 64),
@@ -208,6 +212,8 @@ class Ransformer(torch.nn.Module):
         z = self.transf1(x_enc, y_enc)
         z = self.transf2(z, y_enc)
         z = self.transf3(z, y_enc)
+        z = self.transf4(z, y_enc)
+        z = self.transf5(z, y_enc)
 
         out = self.decoder(z)
         return out
@@ -266,7 +272,7 @@ class AugmentedSimulator():
             simulation_surface = torch.tensor(surf_bool[start_index:end_index])
 
             # creating the skeleton
-            clustroid_idx = skeleton_sampling(simulation_positions, k=1000, method=self.hparams['skeleton_method'], n_iter=self.hparams['skeleton_n_iter'])
+            clustroid_idx = skeleton_sampling(simulation_positions, k=self.hparams['k'], method=self.hparams['skeleton_method'], n_iter=self.hparams['skeleton_n_iter'])
             skeleton_features = torch.clone(simulation_features[clustroid_idx,:])
             skeleton_pos = torch.clone(simulation_positions[clustroid_idx,:])
 
