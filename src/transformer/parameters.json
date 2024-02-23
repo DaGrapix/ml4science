@@ -12,10 +12,11 @@
     "subsampling": 100000,
     "batch_size": 50000,
     "dataloader_batch_size": 1,
-    "nb_epochs": 500,
+    "nb_epochs": 300,
     "lr": 0.003,
     "k": 1000,
-    "method": "uniform"
+    "skeleton_method": "uniform",
+    "skeleton_n_iter": 10
   },
   "training_config": {}
 }

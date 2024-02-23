@@ -49,8 +49,10 @@ def kmeans_plusplus_initialisation(X: torch.Tensor, k: int):
 
     return centroids
 
-def k_means(X:Tensor, k: int=6, n_iter: int=1000):
-    centroids = kmeans_plusplus_initialisation(X,k)
+def k_means(X:Tensor, k: int=6, n_iter: int=100, method: str='kmeans'):
+    if method == 'uniform':     centroids = centroid_uniform_initialisation(X,k)
+    elif method == 'kmeans':    centroids = kmeans_plusplus_initialisation(X,k)
+    else:                       raise ValueError('Invalid method for centroid initialisation')
 
     for i in range(n_iter):
         # compute the distance of each point to the centroids
@@ -70,18 +72,20 @@ def k_means(X:Tensor, k: int=6, n_iter: int=1000):
     return cluster_idx, centroids
 
 
-def skeleton_sampling(X:Tensor, k: int=1000, method: Union['uniform', 'kmeans']='kmeans', n_iter: int=1000):
+def skeleton_sampling(X:Tensor, k: int=1000, method: str='kmeans', n_iter: int=100):
     if method == 'uniform':
-        clustroid_idx = np.random.choice(a=X.shape[0], size=k, replace=False)
+        _, centroids = k_means(X, k=k, n_iter=n_iter, method='uniform')
+        #clustroid_idx = np.random.choice(a=X.shape[0], size=k, replace=False)
     elif method == 'kmeans':
         # extracting a skeleton from the cloudpoint
-        _, centroids = k_means(X, k=k, n_iter=n_iter)
+        _, centroids = k_means(X, k=k, n_iter=n_iter, method='kmeans')
+    elif method == 'kmeans_pp_init':
+        centroids = kmeans_plusplus_initialisation(X, k)
+    else: raise ValueError('Invalid method for skeleton sampling, must be one of [uniform, kmeans, kmeans_pp_init]')
 
-        clustroid_idx = []
-        for point in centroids:
-            clustroid_idx.append(torch.argmin(((X - point)**2).mean(dim=1)).item())
-    else:
-        raise ValueError('Invalid method for skeleton sampling')
+    clustroid_idx = []
+    for point in centroids:
+        clustroid_idx.append(torch.argmin(((X - point)**2).mean(dim=1)).item())
 
     return clustroid_idx
 
@@ -227,7 +231,7 @@ class AugmentedSimulator():
 
         self.model = Ransformer(**self.hparams)
 
-    def process_dataset(self, dataset, training: bool) -> list[Data]:
+    def process_dataset(self, dataset, training: bool) -> List[Data]:
         coord_x=dataset.data['x-position']
         coord_y=dataset.data['y-position']
         surf_bool=dataset.extra_data['surface']
@@ -249,7 +253,8 @@ class AugmentedSimulator():
         # check alive
         t = dt.datetime.now()
 
-        for nb_nodes_in_simulation in nb_nodes_in_simulations:
+        print("Creating the dataset & computing the skeleton...")
+        for nb_nodes_in_simulation in tqdm(nb_nodes_in_simulations):
             #still alive?
             if dt.datetime.now() - t > dt.timedelta(seconds=60):
                 print("Still alive - index : ", end_index)
@@ -261,7 +266,7 @@ class AugmentedSimulator():
             simulation_surface = torch.tensor(surf_bool[start_index:end_index])
 
             # creating the skeleton
-            clustroid_idx = skeleton_sampling(simulation_positions, k=1000, method=self.hparams['method'])
+            clustroid_idx = skeleton_sampling(simulation_positions, k=1000, method=self.hparams['skeleton_method'], n_iter=self.hparams['skeleton_n_iter'])
             skeleton_features = torch.clone(simulation_features[clustroid_idx,:])
             skeleton_pos = torch.clone(simulation_positions[clustroid_idx,:])
 
@@ -273,7 +278,7 @@ class AugmentedSimulator():
                             skeleton_pos = skeleton_pos)
             torchDataset.append(sampleData)
             start_index += nb_nodes_in_simulation
-        
+        print("Dataset created.")
         return torchDataset
 
     def train(self,train_dataset, save_path=None):
@@ -442,9 +447,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
             del(train_dataset_sampled)
 
-        method = hparams["method"]
-
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, method=method)
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg)
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
         del(train_loader)
@@ -460,7 +463,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
     return model
 
 
-def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0, method="kmeans"):
+def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0):
     model.train()
     avg_loss_per_var = torch.zeros(4, device = device)
     avg_loss = 0
