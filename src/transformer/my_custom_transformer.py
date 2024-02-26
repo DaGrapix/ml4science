@@ -208,15 +208,15 @@ class Ransformer(torch.nn.Module):
         x_enc = self.encoder(x)
         y_enc = self.encoder(y)
 
-        x = self.transf1(x_enc, y_enc)
-        y = self.transf1(y_enc, y_enc)
+        x_out = self.transf1(x_enc, y_enc)
+        y_out = self.transf1(y_enc, y_enc)
         
-        x = self.transf2(x, y)
-        y = self.transf2(y, y)
+        x_out = self.transf2(x_out, y_out)
+        y_out = self.transf2(y_out, y_out)
 
-        x = self.transf3(x, y)
+        x_out = self.transf3(x_out, y_out)
 
-        out = self.decoder(x)
+        out = self.decoder(x_out)
         return out
 
 
