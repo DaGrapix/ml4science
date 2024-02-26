@@ -158,11 +158,10 @@ class TransformerBlock(torch.nn.Module):
         self.att = AttentionBlock(sIN, sOUT, yDIM, sPROJ)
         self.mlp = MLP(layers)
         self.layer_norm = LayerNorm(sOUT)
-        self.batch_norm = BatchNorm1d(sOUT)
 
     def forward(self, x: Tensor, y: Tensor) -> Tensor:
         z1 = self.layer_norm(x)
-        w = self.batch_norm(y)
+        w = self.layer_norm(y)
         z1 = self.att(z1, w)
         z1 = z1 + x
 
@@ -189,8 +188,8 @@ class Ransformer(torch.nn.Module):
         self.transf1 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
         self.transf2 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
         self.transf3 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
-        self.transf4 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
-        self.transf5 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        #self.transf4 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
+        #self.transf5 = TransformerBlock(32, 32, yDIM=32, layers=[32, 64, 64, 64, 32])
 
         self.decoder = torch.nn.Sequential(
             Linear(32, 64),
@@ -209,13 +208,15 @@ class Ransformer(torch.nn.Module):
         x_enc = self.encoder(x)
         y_enc = self.encoder(y)
 
-        z = self.transf1(x_enc, y_enc)
-        z = self.transf2(z, y_enc)
-        z = self.transf3(z, y_enc)
-        z = self.transf4(z, y_enc)
-        z = self.transf5(z, y_enc)
+        x = self.transf1(x_enc, y_enc)
+        y = self.transf1(y_enc, y_enc)
+        
+        x = self.transf2(x, y)
+        y = self.transf2(y, y)
 
-        out = self.decoder(z)
+        x = self.transf3(x, y)
+
+        out = self.decoder(x)
         return out
 
 
