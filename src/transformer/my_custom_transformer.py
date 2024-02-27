@@ -205,6 +205,9 @@ class Ransformer(torch.nn.Module):
 
     def forward(self, x, y):
         # encoding x and y
+        x_sample = x[torch.randint(0, x.shape[0], (self.k,))]
+        y = torch.cat([y, x_sample], dim=1)
+
         x_enc = self.encoder(x)
         y_enc = self.encoder(y)
 
