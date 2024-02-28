@@ -82,7 +82,7 @@ def run_model(root_dir, model_path, verbose=True):
     execution_success = True
 
     default_input_dir = root_dir + "Dataset"
-    default_output_dir = root_dir + model_path + "sample_result_submission"
+    default_output_dir = root_dir + model_path + "/sample_result_submission"
     default_program_dir = root_dir + model_path
     default_submission_dir = root_dir + model_path
 
