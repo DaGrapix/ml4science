@@ -460,7 +460,7 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
             del(train_dataset_sampled)
 
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, scaler=scaler, lambda_PINN=hparams['lambda_PINN'])
+        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, scaler=scaler, lambda_continuity=hparams['lambda_continuity'], lambda_pde=hparams['lambda_pde'])
         if criterion == 'MSE_weighted':
             train_loss = reg*loss_surf + loss_vol
         del(train_loader)
@@ -493,7 +493,7 @@ def compute_grad(output, input, retain_graph=False):
     return grad
 
 
-def continuity_loss(output, input, scaler):
+def continuity_loss(output, input, scaler, device):
     """Computes the loss of the continuity equation.
     Input:
         input: (N, 7) tensor
@@ -501,22 +501,24 @@ def continuity_loss(output, input, scaler):
         scaler: StandardScalerIterative
     """
 
-    post_processed = scaler._std_y*output + scaler._m_y
+    post_processed = torch.tensor(scaler._std_y).to(device)*output + torch.tensor(scaler._m_y).to(device)
     std_input = scaler._std_x[0:2]
-    u_x, u_y = post_processed[:, 0], post_processed[:, 1]
+    ux, uy = post_processed[:, 0], post_processed[:, 1]
 
-    gradx_ux_x = std_input[0]*compute_grad(u_x, input)[0]
-    grady_uy_y = std_input[1]*compute_grad(u_y, input)[1]
+    std_input_torch = torch.tensor(std_input).to(device)
 
-    divergence = gradx_ux_x + grady_uy_y
+    grad_ux_x = std_input_torch[0]*compute_grad(ux, input, retain_graph=True)[0]
+    grad_uy_y = std_input_torch[1]*compute_grad(uy, input, retain_graph=True)[1]
 
-    return torch.mean((divergence)**2)
+    divergence = grad_ux_x + grad_uy_y
+
+    return torch.mean(divergence ** 2)
 
 
 nu = 1.56e-5
 
 
-def pde_loss(output, input, scaler):
+def pde_loss(output, input, scaler, device):
     """Computes the RANS equation loss of the PDE.
     Input:
         output: (N, 7) tensor
@@ -524,38 +526,40 @@ def pde_loss(output, input, scaler):
         scaler: StandardScalerIterative
     """
 
-    post_processed = scaler._std_y*output + scaler._m_y
+    post_processed = torch.tensor(scaler._std_y).to(device)*output + torch.tensor(scaler._m_y).to(device)
     std_input = scaler._std_x[0:2]
-    u_x, u_y, p, nu_t = post_processed[:, 0], post_processed[:, 1], post_processed[:, 2], post_processed[:, 3]
+    ux, uy, p, nuT = post_processed[:, 0], post_processed[:, 1], post_processed[:, 2], post_processed[:, 3]
+
+    std_input_torch = torch.tensor(std_input).to(device)
 
     # equation wrt x
-    grad_ux_ux_x = std_input[0]*compute_grad(u_x*u_x, input)[0]
-    grad_ux_uy_y = std_input[1]*compute_grad(u_x*u_y, input)[1]
+    grad_ux_ux_x = std_input_torch[0]*compute_grad(ux*ux, input, retain_graph=True)[0]
+    grad_ux_uy_y = std_input_torch[1]*compute_grad(ux*uy, input, retain_graph=True)[1]
 
-    grad_p_x = std_input[0]*compute_grad(p, input)[0]
+    grad_p_x = std_input_torch[0]*compute_grad(p, input)[0]
 
-    grad_ux = std_input*compute_grad(u_x, input, retain_graph=True)
-    laplacian_ux = std_input[0]*compute_grad(grad_ux[0], input, retain_graph=True)[0] + std_input[1]*compute_grad(grad_ux[1], input, retain_graph=True)[1]
+    grad_ux = std_input_torch*compute_grad(ux, input, retain_graph=True)
+    laplacian_ux = std_input_torch[0]*compute_grad(grad_ux[0], input, retain_graph=True)[0] + std_input_torch[1]*compute_grad(grad_ux[1], input, retain_graph=True)[1]
     
-    pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (nu + nu_t)*laplacian_ux
-    loss_x = torch.mean((pde_x)**2)
+    pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (nu + nuT)*laplacian_ux
+    loss_x = torch.mean(pde_x ** 2)
 
     # equation wrt y
-    grad_uy_ux_x = std_input[0]*compute_grad(u_y*u_x, input)[0]
-    grad_uy_uy_y = std_input[1]*compute_grad(u_y*u_y, input)[1]
+    grad_uy_ux_x = std_input_torch[0]*compute_grad(uy*ux, input, retain_graph=True)[0]
+    grad_uy_uy_y = std_input_torch[1]*compute_grad(uy*uy, input, retain_graph=True)[1]
 
-    grad_p_y = std_input[1]*compute_grad(p, input)[1]
+    grad_p_y = std_input_torch[1]*compute_grad(p, input)[1]
 
-    grad_uy = std_input*compute_grad(u_y, input, retain_graph=True)
-    laplacian_uy = std_input[0]*compute_grad(grad_uy[0], input, retain_graph=True)[0] + std_input[1]*compute_grad(grad_uy[1], input, retain_graph=True)[1]
+    grad_uy = std_input_torch*compute_grad(uy, input, retain_graph=True)
+    laplacian_uy = std_input_torch[0]*compute_grad(grad_uy[0], input, retain_graph=True)[0] + std_input_torch[1]*compute_grad(grad_uy[1], input, retain_graph=True)[1]
 
-    pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (nu + nu_t)*laplacian_uy
-    loss_y = torch.mean((pde_y)**2)
+    pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (nu + nuT)*laplacian_uy
+    loss_y = torch.mean(pde_y ** 2)
 
     return loss_x + loss_y
  
 
-def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0, scaler=None, lambda_PINN=1.0):
+def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0, scaler=None, lambda_continuity=1.0, lambda_pde=1.0):
     model.train()
     avg_loss_per_var = torch.zeros(4, device = device)
     avg_loss = 0
@@ -579,7 +583,9 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         data_clone = data_clone.to(device)   
         optimizer.zero_grad()
 
-        out = model(data_clone.x, data_clone.skeleton_features)
+        data_clone_x_grad = torch.autograd.Variable(data_clone.x, requires_grad=True)
+
+        out = model(data_clone_x_grad, data_clone.skeleton_features)
         targets = data_clone.y
         
         loss_per_var = loss_criterion(out, targets).mean(dim = 0)
@@ -590,8 +596,8 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         loss_vol = loss_vol_var.mean()
 
         if (reg is not None):
-            loss_PINN = continuity_loss(out, data_clone.x, scaler) + pde_loss(out, data_clone.x, scaler)
-            full_loss = loss_vol + reg*loss_surf + lambda_PINN*loss_PINN
+            loss_PINN = lambda_continuity*continuity_loss(out, data_clone_x_grad, scaler, device) + lambda_pde*pde_loss(out, data_clone_x_grad, scaler, device)
+            full_loss = loss_vol + reg*loss_surf + loss_PINN
             (full_loss).backward()           
         else:
             total_loss.backward()

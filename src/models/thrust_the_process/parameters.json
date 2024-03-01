@@ -17,7 +17,8 @@
     "k": 1000,
     "skeleton_method": "random",
     "skeleton_n_iter": 10,
-    "lambda_PINN": 1.0
+    "lambda_continuity": 1.0,
+    "lambda_pde": 1.0
   },
   "training_config": {}
 }
