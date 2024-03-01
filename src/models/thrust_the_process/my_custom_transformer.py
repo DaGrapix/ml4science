@@ -507,8 +507,8 @@ def continuity_loss(output, input, scaler, device):
 
     std_input_torch = torch.tensor(std_input).to(device)
 
-    grad_ux_x = std_input_torch[0]*compute_grad(ux, input, retain_graph=True)[0]
-    grad_uy_y = std_input_torch[1]*compute_grad(uy, input, retain_graph=True)[1]
+    grad_ux_x = std_input_torch[0]*compute_grad(ux, input)[0]
+    grad_uy_y = std_input_torch[1]*compute_grad(uy, input)[1]
 
     divergence = grad_ux_x + grad_uy_y
 
@@ -533,25 +533,25 @@ def pde_loss(output, input, scaler, device):
     std_input_torch = torch.tensor(std_input).to(device)
 
     # equation wrt x
-    grad_ux_ux_x = std_input_torch[0]*compute_grad(ux*ux, input, retain_graph=True)[0]
-    grad_ux_uy_y = std_input_torch[1]*compute_grad(ux*uy, input, retain_graph=True)[1]
+    grad_ux_ux_x = std_input_torch[0]*compute_grad(ux*ux, input)[0]
+    grad_ux_uy_y = std_input_torch[1]*compute_grad(ux*uy, input)[1]
 
     grad_p_x = std_input_torch[0]*compute_grad(p, input)[0]
 
     grad_ux = std_input_torch*compute_grad(ux, input, retain_graph=True)
-    laplacian_ux = std_input_torch[0]*compute_grad(grad_ux[0], input, retain_graph=True)[0] + std_input_torch[1]*compute_grad(grad_ux[1], input, retain_graph=True)[1]
+    laplacian_ux = std_input_torch[0]*compute_grad(grad_ux[0], input)[0] + std_input_torch[1]*compute_grad(grad_ux[1], input)[1]
     
     pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (nu + nuT)*laplacian_ux
     loss_x = torch.mean(pde_x ** 2)
 
     # equation wrt y
-    grad_uy_ux_x = std_input_torch[0]*compute_grad(uy*ux, input, retain_graph=True)[0]
-    grad_uy_uy_y = std_input_torch[1]*compute_grad(uy*uy, input, retain_graph=True)[1]
+    grad_uy_ux_x = std_input_torch[0]*compute_grad(uy*ux, input)[0]
+    grad_uy_uy_y = std_input_torch[1]*compute_grad(uy*uy, input)[1]
 
     grad_p_y = std_input_torch[1]*compute_grad(p, input)[1]
 
     grad_uy = std_input_torch*compute_grad(uy, input, retain_graph=True)
-    laplacian_uy = std_input_torch[0]*compute_grad(grad_uy[0], input, retain_graph=True)[0] + std_input_torch[1]*compute_grad(grad_uy[1], input, retain_graph=True)[1]
+    laplacian_uy = std_input_torch[0]*compute_grad(grad_uy[0], input)[0] + std_input_torch[1]*compute_grad(grad_uy[1], input)[1]
 
     pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (nu + nuT)*laplacian_uy
     loss_y = torch.mean(pde_y ** 2)
@@ -583,7 +583,7 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
         data_clone = data_clone.to(device)   
         optimizer.zero_grad()
 
-        data_clone_x_grad = torch.autograd.Variable(data_clone.x, requires_grad=True)
+        data_clone_x_grad = data_clone.x.clone().requires_grad_(True).to(device)
 
         out = model(data_clone_x_grad, data_clone.skeleton_features)
         targets = data_clone.y
