@@ -224,29 +224,16 @@ class Ransformer(torch.nn.Module):
 
 
 class PINN_loss(torch.nn.Module):
-    def __init__(self, lambda_continuity: float, lambda_pde: float, device: str = 'cpu'):
+    def __init__(self, data_loss_fn, lambda_continuity: float, lambda_pde: float, device: str = 'cpu'):
         super(PINN_loss, self).__init__()
         self.lambda_continuity = lambda_continuity
         self.lambda_pde = lambda_pde
         self.device = device
         self.nu = 1.56e-5
+        self.data_loss_fn = data_loss_fn
     
-    def continuity_loss(self, input, skeleton_features, model, scaler) -> Tensor:
-        # unscaling the data to compute the gradients properly
-        std_x, std_y = torch.tensor(scaler._std_x[0]).to(self.device), torch.tensor(scaler._std_x[1]).to(self.device)
-        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(self.device), torch.tensor(scaler._m_x[1]).to(self.device)
-
-        # setting requires_grad to True on true unscaled x & y
-        x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(self.device)
-        y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(self.device)
-
-        # reconstructing the input tensor
-        x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
-        remaining_inputs = input[:, 2:].detach().requires_grad_(False).to(self.device)
-        input = torch.cat([x, y, remaining_inputs], dim=1)
-
-        # computing the model output & unscaling it too
-        output = model(input, skeleton_features)
+    def continuity_loss(self, output, x_true, y_true, scaler) -> Tensor:
+        # unscaling the output data to compute the gradients properly
         post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
         ux, uy = post_processed[:, 0], post_processed[:, 1]
 
@@ -258,26 +245,12 @@ class PINN_loss(torch.nn.Module):
         loss_continuity = torch.mean(divergence**2)
         return loss_continuity
     
-    def pde_loss(self, input, skeleton_features, model, scaler) -> Tensor:
-        # unscaling the data to compute the gradients properly
-        std_x, std_y = torch.tensor(scaler._std_x[0]).to(self.device), torch.tensor(scaler._std_x[1]).to(self.device)
-        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(self.device), torch.tensor(scaler._m_x[1]).to(self.device)
-
-        # setting requires_grad to True on true unscaled x & y
-        x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(self.device)
-        y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(self.device)
-
-        # reconstructing the input tensor
-        x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
-        remaining_inputs = input[:, 2:].detach().requires_grad_(False).to(self.device)
-        input = torch.cat([x, y, remaining_inputs], dim=1)
-
-        # computing the model output & unscaling it too
-        output = model(input, skeleton_features)
+    def pde_loss(self, output, x_true, y_true, scaler) -> Tensor:
+        # unscaling the output data to compute the gradients properly
         post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
         ux, uy, p, nuT = post_processed[:, 0], post_processed[:, 1], post_processed[:, 2], post_processed[:, 3]
 
-        # computing the pde along the x axis
+        ####### computing the pde along the x axis #######
         grad_ux_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
         grad_ux_uy_y = torch.autograd.grad(inputs=y_true, outputs=ux*uy, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
 
@@ -290,7 +263,7 @@ class PINN_loss(torch.nn.Module):
 
         pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (self.nu + nuT)*laplacian_ux
 
-        # computing the pde along the y axis
+        ####### computing the pde along the y axis #######
         grad_uy_ux_x = torch.autograd.grad(inputs=x_true, outputs=uy*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
         grad_uy_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy*uy, grad_outputs=torch.ones_like(uy).to(self.device), create_graph=True)[0]
 
@@ -307,15 +280,33 @@ class PINN_loss(torch.nn.Module):
         return loss_pde
 
     
-    def forward(self, input, skeleton_features, model, scaler) -> Tensor:
-        #################### computing the continuity loss ####################
-        loss_continuity = self.continuity_loss(input, skeleton_features, model, scaler)
+    def __call__(self, output, target, x_true, y_true, scaler) -> Tensor:
+        """
+        Args:
+            output: (N, 4) tensor: model output computed wrt inputs stiched with scaled x_true and y_true
+            target: (N, 4) tensor: target values
+            x_true: (N, 1) tensor: The true x value with requires_grad=True
+            y_true: (N, 1) tensor: The true y value with requires_grad=True
+            scaler: StandardScalerIterative object
+        """
+        print("in loss forward")
+        ####################      computing the data loss      ####################
+        loss_data = self.data_loss_fn(output, target)
 
-        ####################  computing the RANS pde loss  ####################
-        loss_pde = self.pde_loss(input, skeleton_features, model, scaler)
+        ####################   computing the continuity loss   ####################
+        loss_continuity = self.continuity_loss(output, x_true, y_true, scaler)
+
+        ####################    computing the RANS pde loss    ####################
+        loss_pde = self.pde_loss(output, x_true, y_true, scaler)
         
+        #################### computing the total physics loss  ####################
         physics_loss = self.lambda_continuity*loss_continuity + self.lambda_pde*loss_pde
-        return 
+
+        #################### computing the total loss  ####################
+        total_loss = loss_data + physics_loss
+
+        print("total loss computed:" , total_loss)
+        return total_loss
 
 
 class AugmentedSimulator():
@@ -600,37 +591,50 @@ def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1
     iterNum = 0
 
     # defining the loss function
-    loss_criterion = nn.MSELoss(reduction = 'none')
+    data = nn.MSELoss(reduction = 'none')
     if criterion == 'MSE':
-        data_loss = nn.MSELoss(reduction = 'none')
+        data_loss_fn = nn.MSELoss(reduction = 'none')
     elif criterion == 'MAE':
-        data_loss = nn.L1Loss(reduction = 'none')
+        data_loss_fn = nn.L1Loss(reduction = 'none')
     elif criterion == 'L1Smooth':
-        data_loss = smoothL1
+        data_loss_fn = smoothL1
 
-    physics_loss = PINN_loss(lambda_continuity, lambda_pde, device)
+    loss_criterion = PINN_loss(data_loss_fn, lambda_continuity, lambda_pde, device)
 
     for i, data in tqdm(enumerate(train_loader)):
-        data_clone = data.clone()
-        data_clone = data_clone.to(device)   
         optimizer.zero_grad()
+        data_clone = data.clone()
+        data_clone = data_clone.to(device)
+        input = data_clone.x
 
-        out = model(data_clone.x, data_clone.skeleton_features)
+        # unscaling the data to compute the gradients properly
+        std_x, std_y = torch.tensor(scaler._std_x[0]).to(device).requires_grad_(False), torch.tensor(scaler._std_x[1]).to(device).requires_grad_(False)
+        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(device).requires_grad_(False), torch.tensor(scaler._m_x[1]).to(device).requires_grad_(False)
+
+        # setting requires_grad to True on true unscaled x & y
+        x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(device)
+        y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(device)
+
+        # reconstructing the input tensor
+        x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
+        remaining_inputs = input[:, 2:].detach().to(device)
+        input = torch.cat([x, y, remaining_inputs], dim=1)
+
+        # computing the model output & unscaling it too
+        output = model(input, data_clone.skeleton_features)
         targets = data_clone.y
         
-        loss_per_var = loss_criterion(out, targets).mean(dim = 0)
+        loss_per_var = loss_criterion(output, targets, x_true, y_true, scaler).mean(dim = 0)
         total_loss = loss_per_var.mean()
-        loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
-        loss_vol_var = loss_criterion(out[~data_clone.surf, :], targets[~data_clone.surf, :]).mean(dim = 0)
+        loss_surf_var = loss_criterion(output[data_clone.surf, :], targets[data_clone.surf, :], x_true[data_clone.surf, :], y_true[data_clone.surf, :], scaler).mean(dim = 0)
+        loss_vol_var = loss_criterion(output[~data_clone.surf, :], targets[~data_clone.surf, :], x_true[~data_clone.surf, :], y_true[~data_clone.surf, :], scaler).mean(dim = 0)
         loss_surf = loss_surf_var.mean()
         loss_vol = loss_vol_var.mean()
-        loss_PINN = physics_loss(data_clone.x, data_clone.skeleton_features, model, scaler)
 
         if (reg is not None):
-            full_loss = loss_vol + reg*loss_surf + loss_PINN
+            full_loss = loss_vol + reg*loss_surf
             (full_loss).backward()
         else:
-            full_loss = total_loss + loss_PINN
             total_loss.backward()
         
         optimizer.step()
