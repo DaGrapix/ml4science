@@ -222,7 +222,6 @@ class Ransformer(torch.nn.Module):
         out = self.decoder(x_out)
         return out
 
-nu = 1.56e-5
 
 class PINN_loss(torch.nn.Module):
     def __init__(self, lambda_continuity: float, lambda_pde: float, device: str = 'cpu'):
@@ -230,58 +229,93 @@ class PINN_loss(torch.nn.Module):
         self.lambda_continuity = lambda_continuity
         self.lambda_pde = lambda_pde
         self.device = device
+        self.nu = 1.56e-5
     
-    def forward(self, input, y, model, scaler) -> Tensor:
-        #################### computing the continuity loss ####################
-        input = input.clone().requires_grad_(True).to(self.device)
-        output = model(input, y)
+    def continuity_loss(self, input, skeleton_features, model, scaler) -> Tensor:
+        # unscaling the data to compute the gradients properly
+        std_x, std_y = torch.tensor(scaler._std_x[0]).to(self.device), torch.tensor(scaler._std_x[1]).to(self.device)
+        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(self.device), torch.tensor(scaler._m_x[1]).to(self.device)
+
+        # setting requires_grad to True on true unscaled x & y
+        x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(self.device)
+        y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(self.device)
+
+        # reconstructing the input tensor
+        x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
+        remaining_inputs = input[:, 2:].detach().requires_grad_(False).to(self.device)
+        input = torch.cat([x, y, remaining_inputs], dim=1)
+
+        # computing the model output & unscaling it too
+        output = model(input, skeleton_features)
         post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
-        std_input = scaler._std_x[0:2]
         ux, uy = post_processed[:, 0], post_processed[:, 1]
 
-        std_input_torch = torch.tensor(std_input).to(self.device)
-
-        grad_ux_x = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0][:,0]
-        grad_uy_y = std_input_torch[1]*torch.autograd.grad(inputs=input, outputs=ux, grad_outputs=torch.ones_like(uy), create_graph=True)[0][:,1]
-
+        # computing the continuity equation
+        grad_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0]
+        grad_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
         divergence = grad_ux_x + grad_uy_y
 
         loss_continuity = torch.mean(divergence**2)
+        return loss_continuity
+    
+    def pde_loss(self, input, skeleton_features, model, scaler) -> Tensor:
+        # unscaling the data to compute the gradients properly
+        std_x, std_y = torch.tensor(scaler._std_x[0]).to(self.device), torch.tensor(scaler._std_x[1]).to(self.device)
+        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(self.device), torch.tensor(scaler._m_x[1]).to(self.device)
 
-        ####################  computing the RANS pde loss  ####################
-        input = input.clone().requires_grad_(True).to(self.device)
-        output = model(input, y)
+        # setting requires_grad to True on true unscaled x & y
+        x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(self.device)
+        y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(self.device)
+
+        # reconstructing the input tensor
+        x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
+        remaining_inputs = input[:, 2:].detach().requires_grad_(False).to(self.device)
+        input = torch.cat([x, y, remaining_inputs], dim=1)
+
+        # computing the model output & unscaling it too
+        output = model(input, skeleton_features)
         post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
-        std_input = scaler._std_x[0:2]
         ux, uy, p, nuT = post_processed[:, 0], post_processed[:, 1], post_processed[:, 2], post_processed[:, 3]
 
-        # pde along x
-        grad_ux_ux_x = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=ux*ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0][:,0]
-        grad_ux_uy_y = std_input_torch[1]*torch.autograd.grad(inputs=input, outputs=ux*uy, grad_outputs=torch.ones_like(ux), create_graph=True)[0][:,1]
+        # computing the pde along the x axis
+        grad_ux_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_ux_uy_y = torch.autograd.grad(inputs=y_true, outputs=ux*uy, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
 
-        grad_p_x = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=p, grad_outputs=torch.ones_like(p), create_graph=True)[0][:,0]
+        grad_p_x = torch.autograd.grad(inputs=x_true, outputs=p, grad_outputs=torch.ones_like(p), create_graph=True)[0]
 
-        grad_ux = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=ux, grad_outputs=torch.ones_like(ux), create_graph=True, retain_graph=True)[0]
-        laplacian_ux = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=grad_ux[:,0], grad_outputs=torch.ones_like(grad_ux[:,0]), create_graph=True)[0][:,0] \
-                     + std_input_torch[1]*torch.autograd.grad(inputs=input, outputs=grad_ux[:,1], grad_outputs=torch.ones_like(grad_ux[:,1]), create_graph=True)[0][:,1]
+        grad_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_ux_y = torch.autograd.grad(inputs=y_true, outputs=ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        laplacian_ux = torch.autograd.grad(inputs=x_true, outputs=grad_ux_x, grad_outputs=torch.ones_like(grad_ux_x).to(self.device), create_graph=True)[0] \
+                     + torch.autograd.grad(inputs=y_true, outputs=grad_ux_y, grad_outputs=torch.ones_like(grad_ux_y).to(self.device), create_graph=True)[0]
 
-        pde_x = grad_ux_ux_x + grad_ux_uy_y - grad_p_x + (nu + nuT)*laplacian_ux
+        pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (self.nu + nuT)*laplacian_ux
 
-        # pde along y
-        grad_uy_ux_x = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=uy*ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0][:,0]
-        grad_uy_uy_y = std_input_torch[1]*torch.autograd.grad(inputs=input, outputs=uy*uy, grad_outputs=torch.ones_like(ux), create_graph=True)[0][:,1]
+        # computing the pde along the y axis
+        grad_uy_ux_x = torch.autograd.grad(inputs=x_true, outputs=uy*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_uy_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy*uy, grad_outputs=torch.ones_like(uy).to(self.device), create_graph=True)[0]
 
-        grad_p_y = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=p, grad_outputs=torch.ones_like(p), create_graph=True)[0][:,1]
+        grad_p_y = torch.autograd.grad(inputs=y_true, outputs=p, grad_outputs=torch.ones_like(p).to(self.device), create_graph=True)[0]
 
-        grad_uy = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True, retain_graph=True)[0]
-        laplacian_uy = std_input_torch[0]*torch.autograd.grad(inputs=input, outputs=grad_uy[:,0], grad_outputs=torch.ones_like(grad_uy[:,0]), create_graph=True)[0][:,0] \
-                     + std_input_torch[1]*torch.autograd.grad(inputs=input, outputs=grad_uy[:,1], grad_outputs=torch.ones_like(grad_uy[:,1]), create_graph=True)[0][:,1]
+        grad_uy_x = torch.autograd.grad(inputs=x_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
+        grad_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
+        laplacian_uy = torch.autograd.grad(inputs=x_true, outputs=grad_uy_x, grad_outputs=torch.ones_like(grad_uy_x).to(self.device), create_graph=True)[0] \
+                     + torch.autograd.grad(inputs=y_true, outputs=grad_uy_y, grad_outputs=torch.ones_like(grad_uy_y).to(self.device), create_graph=True)[0]
 
-        pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (nu + nuT)*laplacian_uy
+        pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (self.nu + nuT)*laplacian_uy
 
-        loss_pde = torch.mean(pde_x**2 + pde_y**2)
+        loss_pde = torch.mean(pde_x**2) + torch.mean(pde_y**2)
+        return loss_pde
+
+    
+    def forward(self, input, skeleton_features, model, scaler) -> Tensor:
+        #################### computing the continuity loss ####################
+        loss_continuity = self.continuity_loss(input, skeleton_features, model, scaler)
+
+        ####################  computing the RANS pde loss  ####################
+        loss_pde = self.pde_loss(input, skeleton_features, model, scaler)
         
-        return self.lambda_continuity*loss_continuity + self.lambda_pde*loss_pde
+        physics_loss = self.lambda_continuity*loss_continuity + self.lambda_pde*loss_pde
+        return 
 
 
 class AugmentedSimulator():
