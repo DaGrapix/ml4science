@@ -12,7 +12,7 @@
     "nb_epochs": 300,
     "lr": 0.003,
     "subsampling": 100000,
-    "batch_size": 10000,
+    "batch_size": 2000,
     "dataloader_batch_size": 1,
     "k": 1000,
     "skeleton_method": "random",
