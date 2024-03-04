@@ -314,7 +314,7 @@ class PINN_head(torch.nn.Module):
             loss_list[:, i] = self.lambda_pde*pde_loss + self.lambda_continuity*continuity_loss
             output_lists[:, i, :] = output
         
-        best_output = output_lists[torch.argmin(loss_list, dim=1), torch.arange(N), :]
+        best_output = torch.gather(output_lists, 1, torch.argmin(loss_list, dim=1).view(-1, 1).unsqueeze(-1).expand(-1, -1, 4)).squeeze()
 
         return best_output
 
