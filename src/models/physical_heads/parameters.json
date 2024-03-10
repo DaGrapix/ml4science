@@ -14,11 +14,11 @@
     "subsampling": 10000,
     "batch_size": 5000,
     "dataloader_batch_size": 1,
-    "k": 200,
+    "k": 500,
     "skeleton_method": "random",
     "skeleton_n_iter": 10,
     "nb_models": 4,
-    "random_seeds": [42, 24, 13, 7]
+    "random_seeds": [270, 743, 1, 7]
   },
   "training_config": {}
 }

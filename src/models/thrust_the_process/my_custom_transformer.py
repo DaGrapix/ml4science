@@ -241,6 +241,8 @@ class PINN_loss(torch.nn.Module):
         grad_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0]
         grad_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
         divergence = grad_ux_x + grad_uy_y
+        mean_std = 0.5*(scaler._std_x[0] + scaler._std_x[1])
+        divergence = divergence / mean_std
 
         loss_continuity = torch.mean(divergence**2)
         return loss_continuity

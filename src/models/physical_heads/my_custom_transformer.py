@@ -309,14 +309,16 @@ class PINN_head(torch.nn.Module):
 
         for i in range(len(models)):
             output = models[i](input, skeleton_features)
-            pde_loss = self.pde_loss(output, x_true, y_true, scaler)
-            continuity_loss = self.continuity_loss(output, x_true, y_true, scaler)
+            pde_loss = self.pde_loss(output, x_true, y_true, scaler) if self.lambda_pde > 0 else 0.0
+            continuity_loss = self.continuity_loss(output, x_true, y_true, scaler) if self.lambda_continuity > 0 else 0.0
+
             loss_list[:, i] = self.lambda_pde*pde_loss + self.lambda_continuity*continuity_loss
             output_lists[:, i, :] = output
-        
-        best_output = torch.gather(output_lists, 1, torch.argmin(loss_list, dim=1).view(-1, 1).unsqueeze(-1).expand(-1, -1, 4)).squeeze()
 
-        return best_output
+        weights = F.softmax(-loss_list, dim=1)
+        weighted_output = torch.sum(output_lists*weights.unsqueeze(-1), dim=1)
+        
+        return weighted_output
 
 class AugmentedSimulator():
     def __init__(self,benchmark,**kwargs):
@@ -417,7 +419,7 @@ class AugmentedSimulator():
         iterNum = 0
 
         predictions=[]
-        head = PINN_head(lambda_continuity=1, lambda_pde=1, device=self.device)
+        head = PINN_head(lambda_continuity=1, lambda_pde=0, device=self.device)
 
         # print(len(test_dataset))
         for i, data in enumerate(test_dataset):
