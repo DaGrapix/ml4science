@@ -6,11 +6,12 @@ The study provided here is part of the ML4physim challenge hosted by IRT-Systemx
 CFD simulations being very costly, the use of data-driven surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
 
 Two families of models were implemented and tested here. 
-- **Packed-ensemble models**, which are generalizations of Deep-ensembles that allow to lower the number of an Ensemble Method's parameters small. For **Packed-Ensembles**, two frameworks are proposed in the `packed_ensembles` folder:
+- **Packed-ensemble models**, which are generalizations of Deep-ensembles that allow to lower the number of an Ensemble Method's parameters small. For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` folder:
     - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
     - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
-- **Transformer models**, which have created a revolution in the sequence-to-sequence ML field (mainly in NLP). A modified version of transformer networks is proposed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we call the skeleton of the mesh. For **Transformers**, a bunch of architectures have been developed and reside in the `modified_transformers` folder, and can be run using the `run.py` file.
+- **Transformer models**, which have created a revolution in the sequence-to-sequence ML field (mainly in NLP). A modified version of transformer networks is proposed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we call the skeleton of the mesh. For Transformers, a bunch of architectures have been developed and reside in the `modified_transformers` folder, and can be run using the `run.py` file.
 
+---
 
 ## Installation
 
