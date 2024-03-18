@@ -13,7 +13,7 @@ For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` fold
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
 - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 
-For Transformers, a bunch of architectures were developed and reside in the `modified_transformers` folder.
+For Transformers, a bunch of architectures have been developed and reside in the `modified_transformers` folder.
 
 You can checkout the corresponding paper here: https://arxiv.org/abs/2312.13403
 
