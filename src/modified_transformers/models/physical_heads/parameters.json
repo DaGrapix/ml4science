@@ -11,14 +11,14 @@
   "simulator_extra_parameters": {
     "nb_epochs": 1,
     "lr": 0.003,
-    "subsampling": 10000,
-    "batch_size": 10000,
+    "subsampling": 20000,
+    "batch_size": 20000,
     "dataloader_batch_size": 1,
-    "k": 100,
+    "k": 700,
     "skeleton_method": "random",
     "skeleton_n_iter": 10,
-    "nb_models": 4,
-    "random_seeds": [270, 743, 1, 7]
+    "nb_models": 3,
+    "random_seeds": [92, 27, 42]
   },
   "training_config": {}
 }

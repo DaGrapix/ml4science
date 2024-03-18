@@ -223,6 +223,98 @@ class Ransformer(torch.nn.Module):
         return out
 
 
+class PINN_loss(torch.nn.Module):
+    def __init__(self, data_loss_fn, lambda_continuity: float, lambda_pde: float, device: str = 'cpu'):
+        super(PINN_loss, self).__init__()
+        self.lambda_continuity = lambda_continuity
+        self.lambda_pde = lambda_pde
+        self.device = device
+        self.nu = 1.56e-5
+        self.data_loss_fn = data_loss_fn
+    
+    def continuity_loss(self, output, x_true, y_true, scaler) -> Tensor:
+        # unscaling the output data to compute the gradients properly
+        post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
+        ux, uy = post_processed[:, 0], post_processed[:, 1]
+
+        # computing the continuity equation
+        grad_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux, grad_outputs=torch.ones_like(ux), create_graph=True)[0]
+        grad_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
+        divergence = grad_ux_x + grad_uy_y
+        scale_factor = (scaler._std_x[0] + scaler._std_x[1])/(scaler._std_y[0] + scaler._std_y[1])
+        divergence = scale_factor*divergence
+
+        loss_continuity = torch.mean(divergence**2)
+        return loss_continuity
+    
+    def pde_loss(self, output, x_true, y_true, scaler) -> Tensor:
+        # unscaling the output data to compute the gradients properly
+        mean_std = 0.5*(scaler._std_x[0] + scaler._std_x[1])
+        post_processed = torch.tensor(scaler._std_y).to(self.device)*output + torch.tensor(scaler._m_y).to(self.device)
+        ux, uy, p, nuT = post_processed[:, 0], post_processed[:, 1], post_processed[:, 2], post_processed[:, 3]
+
+        ####### computing the pde along the x axis #######
+        grad_ux_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_ux_uy_y = torch.autograd.grad(inputs=y_true, outputs=ux*uy, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+
+        grad_p_x = torch.autograd.grad(inputs=x_true, outputs=p, grad_outputs=torch.ones_like(p), create_graph=True)[0]
+
+        grad_ux_x = torch.autograd.grad(inputs=x_true, outputs=ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_ux_y = torch.autograd.grad(inputs=y_true, outputs=ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        laplacian_ux = torch.autograd.grad(inputs=x_true, outputs=grad_ux_x, grad_outputs=torch.ones_like(grad_ux_x).to(self.device), create_graph=True)[0] \
+                     + torch.autograd.grad(inputs=y_true, outputs=grad_ux_y, grad_outputs=torch.ones_like(grad_ux_y).to(self.device), create_graph=True)[0]
+
+        pde_x = grad_ux_ux_x + grad_ux_uy_y + grad_p_x - (self.nu + nuT)*laplacian_ux
+        pde_x = pde_x / mean_std
+
+        ####### computing the pde along the y axis #######
+        grad_uy_ux_x = torch.autograd.grad(inputs=x_true, outputs=uy*ux, grad_outputs=torch.ones_like(ux).to(self.device), create_graph=True)[0]
+        grad_uy_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy*uy, grad_outputs=torch.ones_like(uy).to(self.device), create_graph=True)[0]
+
+        grad_p_y = torch.autograd.grad(inputs=y_true, outputs=p, grad_outputs=torch.ones_like(p).to(self.device), create_graph=True)[0]
+
+        grad_uy_x = torch.autograd.grad(inputs=x_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
+        grad_uy_y = torch.autograd.grad(inputs=y_true, outputs=uy, grad_outputs=torch.ones_like(uy), create_graph=True)[0]
+        laplacian_uy = torch.autograd.grad(inputs=x_true, outputs=grad_uy_x, grad_outputs=torch.ones_like(grad_uy_x).to(self.device), create_graph=True)[0] \
+                     + torch.autograd.grad(inputs=y_true, outputs=grad_uy_y, grad_outputs=torch.ones_like(grad_uy_y).to(self.device), create_graph=True)[0]
+
+        pde_y = grad_uy_ux_x + grad_uy_uy_y + grad_p_y - (self.nu + nuT)*laplacian_uy
+        pde_y = pde_y / mean_std
+        
+
+        loss_pde = torch.mean(pde_x**2) + torch.mean(pde_y**2)
+        return loss_pde
+
+    
+    def __call__(self, output, target, x_true, y_true, scaler) -> Tensor:
+        """
+        Args:
+            output: (N, 4) tensor: model output computed wrt inputs stiched with scaled x_true and y_true
+            target: (N, 4) tensor: target values
+            x_true: (N, 1) tensor: The true x value with requires_grad=True
+            y_true: (N, 1) tensor: The true y value with requires_grad=True
+            scaler: StandardScalerIterative object
+        """
+        ####################   computing the continuity loss   ####################
+        if self.lambda_continuity > 0:  loss_continuity = self.continuity_loss(output, x_true, y_true, scaler)
+        else:                           loss_continuity = 0
+
+        ####################    computing the RANS pde loss    ####################
+        if self.lambda_pde > 0: loss_pde = self.pde_loss(output, x_true, y_true, scaler)
+        else:                   loss_pde = 0
+        
+        #################### computing the total physics loss  ####################
+        physics_loss = self.lambda_continuity*loss_continuity + self.lambda_pde*loss_pde
+
+        ####################      computing the data loss      ####################
+        loss_data = self.data_loss_fn(output, target)
+
+        #################### computing the total loss  ####################
+        total_loss = loss_data + physics_loss
+
+        return total_loss
+
+
 class AugmentedSimulator():
     def __init__(self,benchmark,**kwargs):
         np.random.seed(42)
@@ -297,7 +389,7 @@ class AugmentedSimulator():
     def train(self,train_dataset, save_path=None):
         train_dataset = self.process_dataset(dataset=train_dataset,training=True)
         print("Start training")
-        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'L1Smooth')
+        model = global_train(self.device, train_dataset, self.model, self.hparams,criterion = 'L1Smooth', scaler=self.scaler, verbose=self.hparams['verbose'])
         print("Training done")
 
     def predict(self,dataset,**kwargs):
@@ -374,20 +466,17 @@ class AugmentedSimulator():
         return processed
 
 
-def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1):
+def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth', reg = 1, scaler=None, verbose=False):
     model = network.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr = hparams['lr'])
     start = time.time()
 
-    train_loss_surf_list = []
-    train_loss_vol_list = []
-    loss_surf_var_list = []
-    loss_vol_var_list = []
+    train_loss_surf_list    = []
+    train_loss_vol_list     = []
+    train_loss_list         = []
 
     pbar_train = tqdm(range(hparams['nb_epochs']), position=0)
     epoch_nb = 0
-
-    # min_batch_size = calculate_min_batch_size(train_dataset, hparams['batch_size'])
 
     # If we don't have a subsampling value, we use the whole dataset
     if hparams['subsampling'] == "None":
@@ -460,74 +549,133 @@ def global_train(device, train_dataset, network, hparams, criterion = 'L1Smooth'
             train_loader = DataLoader(train_dataset_sampled, batch_size = hparams["dataloader_batch_size"], shuffle = True, drop_last=False)
             del(train_dataset_sampled)
 
-        train_loss, _, loss_surf_var, loss_vol_var, loss_surf, loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg)
-        if criterion == 'MSE_weighted':
-            train_loss = reg*loss_surf + loss_vol
+        avg_loss, avg_loss_surf, avg_loss_vol = train_model(device, model, train_loader, optimizer, lr_scheduler, criterion, reg=reg, scaler=scaler, lambda_continuity=hparams['lambda_continuity'], lambda_pde=hparams['lambda_pde'])
         del(train_loader)
 
-        train_loss_surf_list.append(loss_surf)
-        train_loss_vol_list.append(loss_vol)
-        loss_surf_var_list.append(loss_surf_var)
-        loss_vol_var_list.append(loss_vol_var)
+        train_loss_list.append(avg_loss)
+        train_loss_surf_list.append(avg_loss_surf)
+        train_loss_vol_list.append(avg_loss_vol)
 
-    loss_surf_var_list = np.array(loss_surf_var_list)
-    loss_vol_var_list = np.array(loss_vol_var_list)
+    if verbose:
+        import matplotlib.pyplot as plt
+        #plotting the losses
+        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+        ax.plot(train_loss_list, label='Total loss')
+        ax.plot(train_loss_surf_list, label='Surface loss')
+        ax.plot(train_loss_vol_list, label='Volume loss')
+        ax.set_xlabel('Epochs')
+        ax.set_ylabel('Loss')
+        ax.set_title('Training loss')
+        ax.legend()
+        plt.show()
 
     return model
 
 
-def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0):
+def compute_grad(output, input, retain_graph=False):
+    """Computes the gradient of an output with respect to the input.
+    Args:
+        output: (N, 1) tensor
+        input: (N, 4) tensor
+    """
+    grad = torch.autograd.grad(
+        outputs=output,
+        inputs=input,
+        grad_outputs=torch.ones_like(output),
+        create_graph=True,
+        retain_graph=retain_graph
+    )[0]
+
+    return grad
+
+
+
+def train_model(device, model, train_loader, optimizer, scheduler, criterion='L1Smooth', reg: Union[int, None]=1.0, scaler=None, lambda_continuity=1.0, lambda_pde=1.0):
     model.train()
-    avg_loss_per_var = torch.zeros(4, device = device)
     avg_loss = 0
-    avg_loss_surf_var = torch.zeros(4, device = device)
-    avg_loss_vol_var = torch.zeros(4, device = device)
     avg_loss_surf = 0
     avg_loss_vol = 0
     iterNum = 0
 
     # defining the loss function
-    loss_criterion = nn.MSELoss(reduction = 'none')
+    data = nn.MSELoss(reduction = 'none')
     if criterion == 'MSE':
-        loss_criterion = nn.MSELoss(reduction = 'none')
+        data_loss_fn = nn.MSELoss(reduction = 'none')
     elif criterion == 'MAE':
-        loss_criterion = nn.L1Loss(reduction = 'none')
+        data_loss_fn = nn.L1Loss(reduction = 'none')
     elif criterion == 'L1Smooth':
-        loss_criterion = smoothL1
+        data_loss_fn = smoothL1
+
+    loss_criterion = PINN_loss(data_loss_fn, lambda_continuity, lambda_pde, device)
 
     for i, data in tqdm(enumerate(train_loader)):
-        data_clone = data.clone()
-        data_clone = data_clone.to(device)   
         optimizer.zero_grad()
+        data_clone = data.clone()
+        data_clone = data_clone.to(device)
+        input = data_clone.x
 
-        out = model(data_clone.x, data_clone.skeleton_features)
-        targets = data_clone.y
-        
-        loss_per_var = loss_criterion(out, targets).mean(dim = 0)
-        total_loss = loss_per_var.mean()
-        loss_surf_var = loss_criterion(out[data_clone.surf, :], targets[data_clone.surf, :]).mean(dim = 0)
-        loss_vol_var = loss_criterion(out[~data_clone.surf, :], targets[~data_clone.surf, :]).mean(dim = 0)
-        loss_surf = loss_surf_var.mean()
-        loss_vol = loss_vol_var.mean()
+        # unscaling the data to compute the gradients properly
+        std_x, std_y = torch.tensor(scaler._std_x[0]).to(device).requires_grad_(False), torch.tensor(scaler._std_x[1]).to(device).requires_grad_(False)
+        mean_x, mean_y = torch.tensor(scaler._m_x[0]).to(device).requires_grad_(False), torch.tensor(scaler._m_x[1]).to(device).requires_grad_(False)
 
-        if (reg is not None):            
-            (loss_vol + reg*loss_surf).backward()           
+        if reg is None:
+            # setting requires_grad to True on true unscaled x & y
+            x_true = (std_x*input[:, 0] + mean_x).detach().requires_grad_(True).view(-1, 1).to(device)
+            y_true = (std_y*input[:, 1] + mean_y).detach().requires_grad_(True).view(-1, 1).to(device)
+
+            # reconstructing the input tensor
+            x, y = (x_true - mean_x)/std_x, (y_true - mean_y)/std_y
+            remaining_inputs = input[:, 2:].detach().to(device)
+            input = torch.cat([x, y, remaining_inputs], dim=1)
+
+            # computing the model output
+            output = model(input, data_clone.skeleton_features)
+            targets = data_clone.y
+            
+            loss = loss_criterion(output, targets, x_true, y_true, scaler)
         else:
-            total_loss.backward()
+            surface_map = data_clone.surf
+
+            x_true = (std_x*input[:, 0] + mean_x).view(-1, 1)
+            y_true = (std_y*input[:, 1] + mean_y).view(-1, 1)
+
+            x_true_surf = x_true[surface_map, :].detach().requires_grad_(True).view(-1, 1).to(device)
+            y_true_surf = y_true[surface_map, :].detach().requires_grad_(True).view(-1, 1).to(device)
+            
+            x_true_vol = x_true[~surface_map, :].detach().requires_grad_(True).view(-1, 1).to(device)
+            y_true_vol = y_true[~surface_map, :].detach().requires_grad_(True).view(-1, 1).to(device)
+
+            # reconstructing the input tensor
+            x_surf, y_surf = (x_true_surf - mean_x)/std_x, (y_true_surf - mean_y)/std_y
+            x_vol, y_vol = (x_true_vol - mean_x)/std_x, (y_true_vol - mean_y)/std_y
+
+            remaining_inputs_surf = input[surface_map, 2:].detach().to(device)
+            remaining_inputs_vol = input[~surface_map, 2:].detach().to(device)
+
+            input_surf = torch.cat([x_surf, y_surf, remaining_inputs_surf], dim=1)
+            input_vol = torch.cat([x_vol, y_vol, remaining_inputs_vol], dim=1)
+
+            # computing the model output
+            output_surf = model(input_surf, data_clone.skeleton_features)
+            output_vol = model(input_vol, data_clone.skeleton_features)
+            targets_surf = data_clone.y[surface_map, :]
+            targets_vol = data_clone.y[~surface_map, :]
+
+            loss_surf = loss_criterion(output_surf, targets_surf, x_true_surf, y_true_surf, scaler)
+            loss_vol = loss_criterion(output_vol, targets_vol, x_true_vol, y_true_vol, scaler)
+
+            avg_loss_surf += loss_surf
+            avg_loss_vol += loss_vol 
+
+            loss = loss_vol + reg*loss_surf
         
+        avg_loss += loss
+        loss.backward()
         optimizer.step()
         scheduler.step()
-        avg_loss_per_var += loss_per_var
-        avg_loss += total_loss
-        avg_loss_surf_var += loss_surf_var
-        avg_loss_vol_var += loss_vol_var
-        avg_loss_surf += loss_surf
-        avg_loss_vol += loss_vol 
+        avg_loss += loss
         iterNum += 1
 
     return  avg_loss.cpu().data.numpy()/iterNum,            \
-            avg_loss_per_var.cpu().data.numpy()/iterNum,    \
-            avg_loss_surf_var.cpu().data.numpy()/iterNum,   \
-            avg_loss_vol_var.cpu().data.numpy()/iterNum,    \
             avg_loss_surf.cpu().data.numpy()/iterNum,       \
             avg_loss_vol.cpu().data.numpy()/iterNum

@@ -318,8 +318,6 @@ class PINN_head(torch.nn.Module):
 
         weights = F.softmax(-loss_list, dim=1)
         weighted_output = torch.sum(output_lists*weights.unsqueeze(-1), dim=1)
-        
-        del(x_true, y_true, x, y, remaining_inputs, output_lists, loss_list, weights, output, pde_loss, continuity_loss, std_x, std_y, mean_x, mean_y)
 
         return weighted_output.detach()
 
@@ -424,17 +422,14 @@ class AugmentedSimulator():
         predictions=[]
         head = PINN_head(lambda_continuity=1, lambda_pde=0, device=self.device)
 
-        # print(len(test_dataset))
-        for i, data in enumerate(test_dataset):
-            # print(i)
+        print("dataset length: ", len(test_dataset))
+        for i, data in tqdm(enumerate(test_dataset)):
+            print(f"iteration {i}/{len(test_dataset)}")
             data_clone = data.clone()
             data_clone = data_clone.to(self.device)
 
             X = torch.arange(data_clone.x.shape[0]).reshape(-1,1)
             batch_indices, r = data_batching(X, batch_size = self.hparams["batch_size"])
-
-            outs = []
-
 
             out = torch.empty(size=(0,4)).to(self.device)
             for i in range(len(batch_indices)):
@@ -448,14 +443,12 @@ class AugmentedSimulator():
                 batch_out = head(models=self.models, input=data_batch.x, skeleton_features=data_batch.skeleton_features, scaler=self.scaler)
                 out = torch.cat([out, batch_out], dim=0)
 
-                # removing the duplicates from the output
-                if r>0:
-                    out = out[:-(self.hparams["batch_size"]-r),:]
+            # removing the duplicates from the output
+            if r>0:
+                out = out[:-(self.hparams["batch_size"]-r),:]
 
-                outs.append(out)
-
-            result = torch.stack(outs).mean(dim=0)
-
+            result = out
+            
             targets = data.y.to(self.device)
             loss_criterion = nn.MSELoss(reduction = 'none')
 

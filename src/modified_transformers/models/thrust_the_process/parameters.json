@@ -12,14 +12,14 @@
     "nb_epochs": 300,
     "lr": 0.003,
     "subsampling": 100000,
-    "batch_size": 20000,
+    "batch_size": 30000,
     "dataloader_batch_size": 1,
-    "k": 500,
+    "k": 700,
     "skeleton_method": "random",
     "skeleton_n_iter": 10,
-    "lambda_continuity": 0.3,
+    "lambda_continuity": 0.2,
     "lambda_pde": 0,
-    "verbose": true
+    "verbose": false
   },
   "training_config": {}
 }

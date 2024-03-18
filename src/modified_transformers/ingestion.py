@@ -3,10 +3,6 @@
 # Usage: python3.8 ingestion.py input_dir output_dir ingestion_program_dir submission_program_dir
 
 # =========================== BEGIN OPTIONS ==============================
-# Verbose mode:
-##############
-# Recommended to keep verbose = True: shows various progression messages
-verbose = True # outputs messages to stdout and stderr for debug purposes
 
 # Debug level:
 ##############
@@ -28,11 +24,6 @@ max_time = 500
 # Use default location for the input and output data:
 # If no arguments to run.py are provided, this is where the data will be found
 # and the results written to. Change the root_dir to your local directory.
-root_dir = r"C:/Users/pc/Desktop/github/ml4physim/src/"
-default_input_dir = root_dir + "Dataset"
-default_output_dir = root_dir + "submission_attention/sample_result_submission"
-default_program_dir = root_dir + "submission_attention"
-default_submission_dir = root_dir + "submission_attention"
 
 # =============================================================================
 # =========================== END USER OPTIONS ================================
@@ -86,21 +77,20 @@ class TimeoutException(Exception):
     """timeoutexception"""
 
 
-if __name__=="__main__" :
+def run_model(root_dir, model_path, BENCHMARK_PATH, verbose=True):
     #### Check whether everything went well (no time exceeded)
     execution_success = True
 
-    #### INPUT/OUTPUT: Get input and output directory names
-    if len(argv)==1: # Use the default input and output directories if no arguments are provided
-        input_dir = default_input_dir
-        output_dir = default_output_dir
-        program_dir= default_program_dir
-        submission_dir= default_submission_dir
-    else:
-        input_dir = os.path.abspath(argv[1])
-        output_dir = os.path.abspath(argv[2])
-        program_dir = os.path.abspath(argv[3])
-        submission_dir = os.path.abspath(argv[4])
+    default_input_dir = root_dir + "Dataset"
+    default_output_dir = root_dir + model_path + "/sample_result_submission"
+    default_program_dir = root_dir + model_path
+    default_submission_dir = root_dir + model_path
+
+    input_dir = default_input_dir
+    output_dir = default_output_dir
+    program_dir= default_program_dir
+    submission_dir= default_submission_dir
+
     if verbose:
         print("Using input_dir: " + input_dir)
         print("Using output_dir: " + output_dir)
@@ -162,7 +152,7 @@ if __name__=="__main__" :
     
     print("Preparing benchmark")
     try:
-        with open('benchmark.pkl', 'rb') as f:
+        with open(BENCHMARK_PATH, 'rb') as f:
             benchmark = pickle.load(f)
     except:
         benchmark = AirfRANSBenchmark(benchmark_path=DIRECTORY_NAME,
@@ -170,7 +160,7 @@ if __name__=="__main__" :
                                     benchmark_name=BENCHMARK_NAME,
                                     log_path=LOG_PATH)
         benchmark.load(path=DIRECTORY_NAME)
-        with open('benchmark.pkl', 'wb') as f:
+        with open(BENCHMARK_PATH, 'wb') as f:
             pickle.dump(benchmark, f)
     
 
@@ -237,7 +227,7 @@ if __name__=="__main__" :
     if simulator_parameters["simulator_type"] == "simple_torch":
         print("Loading LIPS torch simulator " + simulator_parameters["model"])
         simulator_module = importlib.import_module("lips.augmented_simulators.torch_models."+simulator_parameters["model_type"])
-        simulator_class = getattr(simulator_module, simulator_parameters["model"])
+        simualtor_class = getattr(simulator_module, simulator_parameters["model"])
 
         from lips.augmented_simulators.torch_simulator import TorchSimulator
         simulator = TorchSimulator(name=simulator_parameters["name"],
@@ -373,4 +363,3 @@ if __name__=="__main__" :
         outfile.write(json_metrics)
 
     print(simulator_metrics)
-   
