@@ -15,7 +15,7 @@ For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` fold
 
 You can checkout the corresponding report here: https://arxiv.org/abs/2312.13403
 
-For Transformers, a bunch of architectures have been developed and reside in the `modified_transformers` folder.
+For Transformers, a bunch of architectures have been developed and reside in the `modified_transformers` folder, and can be run using the `run.py` file.
 
 ## Installation
 
