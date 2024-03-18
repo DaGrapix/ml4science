@@ -7,7 +7,7 @@ CFD simulations being very costly, the use of data-driven surrogate models can b
 
 Two families of models were implemented and tested here. 
 - First is Packed-ensembles, which are generalizations of Deep-ensembles that allow to lower the number of an Ensemble Method's parameters small.
-- Second is Transformer models, which have created a revolution in the sequence-to-sequence ML field (mostrly NLP). A modified version of transformer networks is developed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we'll call the skeleton of the mesh.
+- Second is Transformer models, which have created a revolution in the sequence-to-sequence ML field (mainly in NLP). A modified version of transformer networks is proposed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we call the skeleton of the mesh.
 
 For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` folder:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
