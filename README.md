@@ -1,14 +1,19 @@
 # Packed-Ensemble Surrogate Models for Flow Estimation Arround Airfoil Geometries
 
-This repository shows the implementation of Packed-Ensemble Algorithms for solving Fluid Mechanics problems.
+This repository shows a different model strategies, based on Packed-Ensembles or Transformers for solving the RANS equations, based on the LIPS framework and the Airfrans Dataset.
+
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
 CFD simulations being very costly, the use of data-driven surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
 
-A family of models that is tested here is Packed-ensembles, which are generalizations of Deep-ensembles that allow to keep the number of an Ensemble Method's parameters small.
+Two family of models were implemented and tested here. 
+- First is Packed-ensembles, which are generalizations of Deep-ensembles that allow to lower the number of an Ensemble Method's parameters small.
+- Second is Transformer models, which have created a revolution in the sequence-to-sequence ML field (mostrly NLP). A modified version of transformer networks is developed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we'll call the skeleton of the mesh.
 
-Two frameworks are proposed:
+For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` folder:
 - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
 - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
+
+For Transformers, a bunch of architectures were developed and reside in the `modified_transformers` folder.
 
 You can checkout the corresponding paper here: https://arxiv.org/abs/2312.13403
 
