@@ -15,6 +15,8 @@ For **Packed-Ensembles**, two frameworks are proposed in the `packed_ensembles` 
 
 You can checkout the corresponding report here: https://arxiv.org/abs/2312.13403
 
+<br></br>
+
 For **Transformers**, a bunch of architectures have been developed and reside in the `modified_transformers` folder, and can be run using the `run.py` file.
 
 We additionnally propose a last notebook `PINNS.ipynb` which shows the usage of the `torch.autograd` in the context of Physics-informed PDE losses, which was also explored in the transformer models.
