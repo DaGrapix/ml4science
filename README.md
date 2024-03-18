@@ -21,6 +21,8 @@ For **Transformers**, a bunch of architectures have been developed and reside in
 
 We additionnally propose a last notebook `PINNS.ipynb` which shows the usage of the `torch.autograd` in the context of Physics-informed PDE losses, which was also explored in the transformer models.
 
+<br></br>
+
 ## Installation
 
 ### Install the LIPS framework
