@@ -1,4 +1,4 @@
-# Packed-Ensemble & Transformer Surrogate Models for Flow Estimation Arround Airfoil Geometries
+# Transformer & Packed-Ensemble Surrogate Models for Flow Estimation Arround Airfoil Geometries
 
 This repository shows a different model strategies, based on Packed-Ensembles or Transformers for solving the RANS equations, based on the LIPS framework and the Airfrans Dataset.
 
