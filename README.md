@@ -11,7 +11,7 @@ Two families of models were implemented and tested here.
     - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
 - **Transformer models**, which have created a revolution in the sequence-to-sequence ML field (mainly in NLP). A modified version of transformer networks is proposed here, where for each simulations, the query tokens are only attended to a subsampled number of value tokens that have been sampled in the pointcloud of the simulation which we call the skeleton of the mesh. For Transformers, a bunch of architectures have been developed and reside in the `subsampled_bi_transformers` folder, and can be run using the `run.py` file.
 
-The `megatron` model got us the best score and the $4^{\text{th}}$ place in the challenge!
+The `megatron` bi-transformer model got us the best score and the $4^{\text{th}}$ place in the challenge!
 
 ---
 
