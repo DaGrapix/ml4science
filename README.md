@@ -89,7 +89,7 @@ Attention Is All You Need, A. Vaswani et al. (2017).
 Packed-Ensembles for Efficient Uncertainty Estimation, O. Laurent et al. (2023). 
 
 <a id="3">[3]</a> 
-LIPS - Learning Industrial Physical Simulation benchmark suite, M. LEYLI ABADI et al. (2022).
+LIPS - Learning Industrial Physical Simulation benchmark suite, M. Leyli Abadi et al. (2022).
 
 <a id="4">[4]</a> 
 AirfRANS: High Fidelity Computational Fluid Dynamics Dataset for Approximating Reynolds-Averaged Navier-Stokes Solutions, F. Bonnet et al. (2023).
