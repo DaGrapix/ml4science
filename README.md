@@ -78,7 +78,7 @@ pip install torch-uncertainty
 ## The team
 - Anthony Kalaydjian, Master student @ ENSTA/EPFL - anthony.kalaydjian@epfl.ch
 - Anton Balykov, Master student @ EPFL - anton.balykov@epfl.ch
-- Adrien Chan-Hon-Tong, Onera Université Paris Saclay – adrien.chan_hon_tong@onera.fr
+- Adrien Chan-Hon-Tong, Researcher in ML @ Onera Université Paris Saclay – adrien.chan_hon_tong@onera.fr
 
 
 ## References
