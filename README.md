@@ -1,6 +1,6 @@
 # Subsampled Bi-Transformer & Packed-Ensemble Surrogate Models for Flow Estimation Arround Airfoil Geometries
 
-This repository shows two different model strategies adapted from Transformers [[1]](#1) and Packed-Ensembles [[2]](#2) for solving the RANS equations, based on the LIPS framework and the Airfrans airfoil Dataset [[3]](#3).
+This repository shows two different model strategies adapted from Transformers [[1]](#1) and Packed-Ensembles [[2]](#2) for solving the RANS equations, based on the LIPS framework and the Airfrans Dataset [[3]](#3).
 
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
 CFD simulations being very costly, the use of data-driven surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
