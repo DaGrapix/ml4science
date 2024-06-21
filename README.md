@@ -11,9 +11,9 @@ Two families of models were implemented and tested here:
     - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
     - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are explicited in the `config.ini` file.
 
-<br>
+
 The Bi-transformer model got us the $4^{\text{th}}$ place in this challenge!
-<br>
+
 
 Also, feel free to checkout the `checkpoint` branch to see other model tests and implementations.
 
