@@ -8,10 +8,12 @@ CFD simulations being very costly, the use of data-driven surrogate models can b
 Two families of models were implemented and tested here. 
 - **Packed-ensemble models**, which are generalizations of Deep-ensembles that allow to lower the number of a classical ensemble model's parameters. For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` folder:
     - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
-    - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are developed in the `config.ini` file.
-- **Bi-Transformer models** A modified version of transformer networks, where for each simulations, the query tokens are only attended to a subsampled set of key tokens from the pointcloud of the simulation which we call the skeleton of the mesh. The best model is saved at `subsampled_bi_transformers/bi_transformer` folder, and can be run using the `run.py` file. Feel free to checkout the `checkpoint` branch to see other model tests and implementations.
+    - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are explicited in the `config.ini` file.
+- **Bi-Transformer models** A modified version of transformer networks, where for each simulations, the query tokens are only attended to a subsampled set of key tokens from the pointcloud of the simulation which we call the skeleton of the mesh. The best model's implementation is locateed in the `subsampled_bi_transformers/bi_transformer` folder, and can be ran using the `run.py` file.
 
 The Bi-transformer model got us the $4^{\text{th}}$ place in the challenge!
+
+ Also, feel free to checkout the `checkpoint` branch to see other model tests and implementations.
 
 ---
 
