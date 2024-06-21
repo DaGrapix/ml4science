@@ -1,6 +1,8 @@
 # Subsampled Bi-Transformer & Packed-Ensemble Surrogate Models for Flow Estimation Arround Airfoil Geometries
 
-This repository shows a different model strategies, based on Packed-Ensembles or Transformers for solving the RANS equations, based on the LIPS framework and the Airfrans Dataset.
+This repository shows a different model strategies based on Packed-Ensembles and Bi-Transformers for solving the RANS equations, based on the LIPS framework and the Airfrans Dataset.
+
+The Bi-transformer model won the $4^{\text{th}}$ place in this challenge!
 
 The study provided here is part of the ML4physim challenge hosted by IRT-Systemx (see [Codabench page](https://www.codabench.org/competitions/1534/)).
 CFD simulations being very costly, the use of data-driven surrogate models can be useful to optimize the shape of airfoils without paying the cost of expensive simulations.
@@ -10,8 +12,6 @@ Two families of models were implemented and tested here.
 - **Packed-ensemble models:** Packed Ensembles [[2]](#2) are generalizations of Deep-ensembles that allow to lower the number of a classical ensemble model's parameters. For Packed-Ensembles, two frameworks are proposed in the `packed_ensembles` folder:
     - A complete and independent framework developped in `ml4science.ipynb` with a custom training function and a cross validation selection implementation.
     - An implementation of the Packed-Ensemble model within the LIPS framework in `packed_lips.ipynb`. All the configurations that were tried are explicited in the `config.ini` file.
-
-The Bi-transformer model got us the $4^{\text{th}}$ place in the challenge!
 
  Also, feel free to checkout the `checkpoint` branch to see other model tests and implementations.
 
@@ -72,6 +72,11 @@ if not os.path.isdir(directory_name):
 ```sh
 pip install torch-uncertainty
 ```
+
+## The team
+- Anthony Kalaydjian, Master student @ ENSTA/EPFL - anthony.kalaydjian@epfl.ch
+- Anton Balykov, Master student @ EPFL - anton.balykov@epfl.ch
+- Adrien Chan-Hon-Tong, Onera Université Paris Saclay – adrien.chan_hon_tong@onera.fr
 
 
 ## References
